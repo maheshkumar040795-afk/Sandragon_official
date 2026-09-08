@@ -14,6 +14,26 @@
 <header class="navbar">
   <div class="container">
     <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+
+    <div class="nav-search">
+      <input type="text" id="siteSearchInput" placeholder="Search bats, balls, gloves…" autocomplete="off">
+      <button type="button" id="siteSearchBtn" aria-label="Search"><i class="fas fa-search"></i></button>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+
+    <nav class="nav-links" id="navLinks">
+      <a href="index.html">Shop</a>
+      <div class="nav-cat-wrap">
+        <a href="index.html" class="nav-cat-trigger">Categories <i class="fas fa-chevron-down"></i></a>
+        <div class="mega-menu" id="categoryMegaMenu"></div>
+      </div>
+      <a href="track-order.html" class="active">Track Order</a>
+      <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
+        <span class="cart-count" id="cartCount">0</span>
+      </a>
+      <a href="admin/login.html" title="Admin" style="opacity:.35"><i class="fas fa-lock"></i></a>
+    </nav>
+    <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
   </div>
 </header>
 
@@ -33,7 +53,11 @@
 
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('hamburgerBtn').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('active');
+});
 </script>
+<script type="module" src="js/nav-features.js"></script>
 <script type="module" src="js/track-order.js"></script>
 <script src="js/premium.js" defer></script>
 </body>

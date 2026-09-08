@@ -14,8 +14,20 @@
 <header class="navbar">
   <div class="container">
     <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+
+    <div class="nav-search">
+      <input type="text" id="siteSearchInput" placeholder="Search bats, balls, gloves…" autocomplete="off">
+      <button type="button" id="siteSearchBtn" aria-label="Search"><i class="fas fa-search"></i></button>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+
     <nav class="nav-links" id="navLinks">
       <a href="index.html">Shop</a>
+      <div class="nav-cat-wrap">
+        <a href="index.html" class="nav-cat-trigger">Categories <i class="fas fa-chevron-down"></i></a>
+        <div class="mega-menu" id="categoryMegaMenu"></div>
+      </div>
+      <a href="#" id="trackOrderLink">Track Order</a>
       <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
         <span class="cart-count" id="cartCount">0</span>
       </a>
@@ -28,6 +40,8 @@
 <div class="container" id="pdContainer">
   <div class="spinner mt-20"></div>
 </div>
+
+<div class="container" id="relatedSection"></div>
 
 <footer>
   <p>&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
@@ -43,7 +57,13 @@ document.getElementById('year').textContent = new Date().getFullYear();
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
   document.getElementById('navLinks').classList.toggle('active');
 });
+document.getElementById('trackOrderLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  const phone = prompt('Enter the phone number used for your order to track it:');
+  if (phone) window.location.href = `track-order.html?phone=${encodeURIComponent(phone)}`;
+});
 </script>
+<script type="module" src="js/nav-features.js"></script>
 <script type="module" src="js/product-detail.js"></script>
 <script src="js/premium.js" defer></script>
 </body>

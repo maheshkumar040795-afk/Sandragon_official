@@ -1,7 +1,9 @@
-import { db, doc, getDoc } from "./firebase-init.js";
+import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-init.js";
 import { addToCart } from "./cart-store.js";
+import { categoryName } from "./categories.js";
 
 const container = document.getElementById('pdContainer');
+const relatedSection = document.getElementById('relatedSection');
 const params = new URLSearchParams(window.location.search);
 const productId = params.get('id');
 
@@ -45,6 +47,7 @@ function render() {
         </div>
       </div>
       <div class="pd-info">
+        ${p.category ? `<div class="cat-tag" style="position:static;display:inline-flex;margin-bottom:12px">${categoryName(p.category) || p.category}</div>` : ''}
         <h1>${p.name}</h1>
         <div class="pd-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
         <p class="pd-desc">${p.description || ''}</p>
@@ -144,6 +147,55 @@ function render() {
       window.location.href = 'cart.html';
     }
   });
+
+  loadRelated(p);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+async function loadRelated(p) {
+  if (!relatedSection) return;
+  if (!p.category) { relatedSection.innerHTML = ''; return; }
+  try {
+    const q = query(
+      collection(db, 'products'),
+      where('active', '==', true),
+      where('category', '==', p.category)
+    );
+    const snap = await getDocs(q);
+    const items = snap.docs
+      .filter(d => d.id !== productId)
+      .slice(0, 4);
+
+    if (!items.length) { relatedSection.innerHTML = ''; return; }
+
+    relatedSection.innerHTML = `
+      <h2 class="section-title">You May Also Like</h2>
+      <div class="product-grid" id="relatedGrid"></div>
+    `;
+    const relatedGrid = document.getElementById('relatedGrid');
+    items.forEach(docSnap => {
+      const rp = docSnap.data();
+      const rid = docSnap.id;
+      const img = (rp.images && rp.images[0]) || 'assets/logo.jpeg';
+      const card = document.createElement('a');
+      card.href = `product.html?id=${rid}`;
+      card.className = 'product-card';
+      card.innerHTML = `
+        ${rp.category ? `<span class="cat-tag">${escapeHtml(categoryName(rp.category) || rp.category)}</span>` : ''}
+        <div class="img-wrap"><img src="${img}" alt="${escapeHtml(rp.name)}" loading="lazy"></div>
+        <div class="info">
+          <div class="name">${escapeHtml(rp.name)}</div>
+          <div class="price">₹${Number(rp.price).toLocaleString('en-IN')}</div>
+        </div>`;
+      relatedGrid.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Related products failed to load', err);
+    relatedSection.innerHTML = '';
+  }
 }
 
 loadProduct();

@@ -4,9 +4,16 @@ import {
   orderBy, query, serverTimestamp
 } from "../../js/firebase-init.js";
 import { cloudinaryConfig } from "../../js/config.js";
+import { CATEGORIES, categoryName } from "../../js/categories.js";
 
 requireAdmin(() => loadProducts());
 setupLogoutButton();
+
+const categorySelect = document.getElementById('fCategory');
+if (categorySelect) {
+  categorySelect.innerHTML = `<option value="">Select a category…</option>` +
+    CATEGORIES.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
 
 let uploadedImages = [];
 let colors = [];
@@ -17,11 +24,11 @@ const tbody = document.getElementById('productsTableBody');
 const modal = document.getElementById('productModal');
 
 async function loadProducts() {
-  tbody.innerHTML = `<tr><td colspan="6" class="text-center">Loading...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading...</td></tr>`;
   const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
   if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center">No products yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center">No products yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = '';
@@ -33,6 +40,7 @@ async function loadProducts() {
     row.innerHTML = `
       <td><img src="${img}" style="width:44px;height:44px;object-fit:cover;border-radius:6px"></td>
       <td>${p.name}</td>
+      <td>${p.category ? categoryName(p.category) || p.category : '—'}</td>
       <td>₹${Number(p.price).toLocaleString('en-IN')}</td>
       <td>${p.stock ?? '—'}</td>
       <td><span class="badge ${p.active ? 'confirmed' : 'placed'}">${p.active ? 'Live' : 'Hidden'}</span></td>
@@ -66,6 +74,7 @@ function resetModal() {
   document.getElementById('productId').value = '';
   document.getElementById('fName').value = '';
   document.getElementById('fDescription').value = '';
+  if (categorySelect) categorySelect.value = '';
   document.getElementById('fPrice').value = '';
   document.getElementById('fStock').value = '';
   document.getElementById('fVendorName').value = '';
@@ -87,6 +96,7 @@ async function openModal(id) {
       const p = target.data();
       document.getElementById('fName').value = p.name || '';
       document.getElementById('fDescription').value = p.description || '';
+      if (categorySelect) categorySelect.value = p.category || '';
       document.getElementById('fPrice').value = p.price || '';
       document.getElementById('fStock').value = p.stock ?? '';
       document.getElementById('fVendorName').value = p.vendorName || '';
@@ -170,11 +180,14 @@ function renderTags(containerId, inputId, arr) {
 document.getElementById('saveProductBtn').addEventListener('click', async () => {
   const name = document.getElementById('fName').value.trim();
   const price = Number(document.getElementById('fPrice').value);
+  const category = categorySelect ? categorySelect.value : '';
   if (!name || !price) { alert('Name and price are required.'); return; }
+  if (!category) { alert('Please select a category.'); return; }
 
   const payload = {
     name,
     description: document.getElementById('fDescription').value.trim(),
+    category,
     price,
     stock: document.getElementById('fStock').value === '' ? null : Number(document.getElementById('fStock').value),
     vendorName: document.getElementById('fVendorName').value.trim(),

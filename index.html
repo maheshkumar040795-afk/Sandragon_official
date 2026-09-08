@@ -16,8 +16,19 @@
 <header class="navbar">
   <div class="container">
     <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+
+    <div class="nav-search">
+      <input type="text" id="siteSearchInput" placeholder="Search bats, balls, gloves…" autocomplete="off">
+      <button type="button" id="siteSearchBtn" aria-label="Search"><i class="fas fa-search"></i></button>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+
     <nav class="nav-links" id="navLinks">
       <a href="index.html" class="active">Shop</a>
+      <div class="nav-cat-wrap">
+        <a href="index.html" class="nav-cat-trigger">Categories <i class="fas fa-chevron-down"></i></a>
+        <div class="mega-menu" id="categoryMegaMenu"></div>
+      </div>
       <a href="#" id="trackOrderLink">Track Order</a>
       <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
         <span class="cart-count" id="cartCount">0</span>
@@ -40,6 +51,8 @@
 
 <div class="container">
   <h2 class="section-title">The Collection</h2>
+  <div class="category-pills" id="categoryPills"></div>
+  <div class="search-results-banner" id="searchBanner" style="display:none"></div>
   <div class="product-grid" id="productGrid">
     <div class="spinner"></div>
   </div>
@@ -74,6 +87,7 @@ document.getElementById('trackOrderLink').addEventListener('click', (e) => {
   if (phone) window.location.href = `track-order.html?phone=${encodeURIComponent(phone)}`;
 });
 </script>
+<script type="module" src="js/nav-features.js"></script>
 <script type="module" src="js/store.js"></script>
 <script src="js/premium.js" defer></script>
 </body>
