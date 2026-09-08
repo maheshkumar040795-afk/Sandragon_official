@@ -1,4 +1,4 @@
-import { db, collection, getDocs, query, where, orderBy } from "./firebase-init.js";
+import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
 import { rankResults } from "./nav-features.js";
 import "./cart-store.js";
@@ -104,10 +104,14 @@ function renderPills() {
 
 async function loadProducts() {
   try {
+    // No orderBy() in the Firestore query itself: pairing where() with
+    // orderBy() on a different field needs a composite index created in
+    // the Firebase console first, and this app shouldn't depend on that
+    // manual step. Sort client-side instead once the (small) product
+    // catalog is fetched.
     const q = query(
       collection(db, 'products'),
-      where('active', '==', true),
-      orderBy('createdAt', 'desc')
+      where('active', '==', true)
     );
     const snap = await getDocs(q);
 
@@ -117,7 +121,13 @@ async function loadProducts() {
       return;
     }
 
-    allProducts = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    allProducts = snap.docs
+      .map(d => ({ id: d.id, data: d.data() }))
+      .sort((a, b) => {
+        const ta = a.data.createdAt?.toMillis ? a.data.createdAt.toMillis() : 0;
+        const tb = b.data.createdAt?.toMillis ? b.data.createdAt.toMillis() : 0;
+        return tb - ta;
+      });
     renderPills();
     renderGrid();
   } catch (err) {

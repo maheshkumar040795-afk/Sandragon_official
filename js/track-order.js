@@ -1,4 +1,4 @@
-import { db, collection, query, where, getDocs, orderBy } from "./firebase-init.js";
+import { db, collection, query, where, getDocs } from "./firebase-init.js";
 
 const statusLabels = {
   placed: 'Order Placed',
@@ -12,18 +12,26 @@ async function search(phone) {
   const results = document.getElementById('results');
   results.innerHTML = '<div class="spinner"></div>';
   try {
+    // Deliberately no orderBy() here: combining it with the where() below
+    // would require a Firestore composite index to be created manually in
+    // the console first. Sorting the (small) result set client-side avoids
+    // that dependency entirely.
     const q = query(
       collection(db, 'orders'),
-      where('customer.phone', '==', phone),
-      orderBy('createdAt', 'desc')
+      where('customer.phone', '==', phone)
     );
     const snap = await getDocs(q);
     if (snap.empty) {
       results.innerHTML = `<div class="empty-state">No orders found for this number.</div>`;
       return;
     }
+    const docs = snap.docs.slice().sort((a, b) => {
+      const ta = a.data().createdAt?.toMillis ? a.data().createdAt.toMillis() : 0;
+      const tb = b.data().createdAt?.toMillis ? b.data().createdAt.toMillis() : 0;
+      return tb - ta;
+    });
     results.innerHTML = '';
-    snap.forEach(docSnap => {
+    docs.forEach(docSnap => {
       const o = docSnap.data();
       const card = document.createElement('div');
       card.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px';

@@ -159,7 +159,8 @@ header.navbar{
 .mega-menu{
   position:absolute;top:calc(100% + 18px);left:50%;transform:translateX(-50%) translateY(8px);
   width:540px;max-width:88vw;background:#0d0d0dee;backdrop-filter:blur(20px);
-  border:1px solid var(--border-gold);border-radius:var(--radius-lg);box-shadow:var(--shadow-premium);
+  border:1px solid var(--border-gold);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-premium), 0 0 40px 4px rgba(201,162,39,.1);
   padding:22px;opacity:0;visibility:hidden;transition:opacity .3s var(--ease),transform .3s var(--ease),visibility .3s;
   z-index:250;
 }
@@ -278,7 +279,10 @@ header.navbar{
   opacity:0;transform:translateY(28px);
 }
 .product-card.in-view{opacity:1;transform:translateY(0)}
-.product-card:hover{border-color:var(--border-gold);box-shadow:var(--shadow-premium)}
+.product-card:hover{
+  border-color:var(--border-gold);
+  box-shadow:var(--shadow-premium), 0 0 26px 2px rgba(201,162,39,.32), 0 0 60px 10px rgba(201,162,39,.12);
+}
 .product-card .img-wrap{aspect-ratio:1/1;overflow:hidden;background:#1a1a1a;transform:translateZ(20px)}
 .product-card img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease)}
 .product-card:hover img{transform:scale(1.08)}
@@ -352,6 +356,11 @@ input,textarea,select{
 }
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-dim)}
 textarea{resize:vertical}
+select{cursor:pointer}
+/* Best-effort dark styling for the native option list (Chrome/Edge/Firefox
+   honor this; Safari ignores it and falls back to system styling) */
+select option{background:#141414;color:#fff}
+select option:checked,select option:hover{background:var(--gold);color:#000}
 
 /* Footer */
 footer{
@@ -385,7 +394,11 @@ footer .social a:hover{color:var(--gold);transform:translateY(-3px) scale(1.1)}
   width:230px;background:rgba(12,12,12,.85);backdrop-filter:blur(12px);
   border-right:1px solid var(--border);padding:26px 0;flex-shrink:0;
 }
-.admin-sidebar .brand{padding:0 20px 24px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.admin-sidebar .brand{
+  padding:0 16px 22px;border-bottom:1px solid var(--border);margin-bottom:16px;
+  font-size:1.05rem;letter-spacing:1px;white-space:nowrap;overflow:hidden;
+}
+.admin-sidebar .brand img{height:26px;flex-shrink:0}
 .admin-sidebar a{
   display:flex;align-items:center;gap:10px;padding:13px 20px;color:var(--muted);font-size:.9rem;
   border-left:2px solid transparent;transition:.25s var(--ease);

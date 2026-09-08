@@ -178,6 +178,14 @@ function renderTags(containerId, inputId, arr) {
 
 // ---- Save product ----
 document.getElementById('saveProductBtn').addEventListener('click', async () => {
+  // Auto-commit any text still sitting in the color/size inputs that the
+  // admin typed but never pressed Enter for — otherwise it's silently
+  // lost and the customer never sees it.
+  const pendingColor = document.getElementById('colorInputField')?.value.trim();
+  if (pendingColor) { colors.push(pendingColor); renderTags('colorTagInput', 'colorInputField', colors); }
+  const pendingSize = document.getElementById('sizeInputField')?.value.trim();
+  if (pendingSize) { sizes.push(pendingSize); renderTags('sizeTagInput', 'sizeInputField', sizes); }
+
   const name = document.getElementById('fName').value.trim();
   const price = Number(document.getElementById('fPrice').value);
   const category = categorySelect ? categorySelect.value : '';
