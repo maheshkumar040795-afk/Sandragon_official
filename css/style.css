@@ -98,8 +98,8 @@ header.navbar{
 .brand{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:1.4rem;letter-spacing:2px}
 .brand img{height:38px;width:auto;border-radius:6px;box-shadow:0 0 0 1px var(--border-gold)}
 .brand .d{color:var(--accent)}
-.nav-links{display:flex;align-items:center;gap:34px}
-.nav-links a{position:relative;font-size:.9rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);transition:color .25s}
+.nav-links{display:flex;align-items:center;gap:22px}
+.nav-links a{position:relative;font-size:.82rem;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);transition:color .25s;white-space:nowrap}
 .nav-links a::after{
   content:'';position:absolute;left:0;bottom:-6px;width:0;height:1px;background:var(--gold);
   transition:width .35s var(--ease);
@@ -134,7 +134,7 @@ header.navbar{
 }
 .nav-search button:hover{transform:translateY(-50%) scale(1.1)}
 .search-dropdown{
-  position:absolute;top:calc(100% + 10px);left:0;right:0;background:#0d0d0dee;backdrop-filter:blur(18px);
+  position:absolute;top:calc(100% + 10px);left:0;right:0;min-width:300px;background:#0d0d0dee;backdrop-filter:blur(18px);
   border:1px solid var(--border-gold);border-radius:var(--radius-lg);box-shadow:var(--shadow-premium);
   padding:8px;display:none;max-height:60vh;overflow-y:auto;z-index:250;
 }
@@ -184,12 +184,26 @@ header.navbar{
   color:var(--gold);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.5px;
 }
 
-@media(min-width:769px){
-  .nav-search{order:1;flex:0 1 380px;margin:0 10px}
-  .nav-links{order:2}
+@media(min-width:1001px){
+  .brand{flex-shrink:0}
+  .nav-links{order:2;flex-shrink:0}
+  /* Search bar deliberately shrinks first — real icon-font glyphs (cart
+     bag, chevron, user, lock) take real width in production, unlike in
+     preview environments where a blocked icon font can under-report it.
+     Keeping nav-links flex-shrink:0 and letting the search bar be the
+     one flexible element is what keeps the whole row on one line.
+     The breakpoint is deliberately 1001px, not the usual ~768px tablet
+     line: the extra nav items (Order History, account name) need more
+     room before a single row works, so anything narrower gets the clean
+     hamburger menu instead of a cramped/wrapped inline row. */
+  .nav-search{order:1;flex:1 1 180px;min-width:120px;max-width:230px;margin:0 14px}
 }
 
-@media(max-width:768px){
+@media(min-width:1150px){
+  .nav-search{max-width:280px}
+}
+
+@media(max-width:1000px){
   .nav-links{
     position:fixed;top:66px;left:0;right:0;background:rgba(5,5,5,.96);backdrop-filter:blur(14px);
     flex-direction:column;
@@ -219,6 +233,65 @@ header.navbar{
 .cat-pill.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#000;border-color:transparent;font-weight:700}
 .search-results-banner{text-align:center;color:var(--muted);margin:-14px 0 34px;font-size:.92rem}
 .search-results-banner a{color:var(--gold);text-decoration:underline;margin-left:10px;cursor:pointer}
+
+/* ---------- Homepage banner carousel ---------- */
+.banner-carousel{
+  position:relative;max-width:var(--maxw);margin:0 auto 44px;border-radius:var(--radius-lg);
+  overflow:hidden;box-shadow:var(--shadow-premium);border:1px solid var(--border-gold);
+  aspect-ratio:1756/450;background:#111;
+}
+.banner-track{position:relative;width:100%;height:100%}
+.banner-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .6s var(--ease)}
+.banner-slide.active{opacity:1;visibility:visible}
+.banner-slide img{width:100%;height:100%;object-fit:cover;display:block}
+.banner-explore-btn{
+  position:absolute;left:28px;bottom:28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));
+  color:#000;font-weight:700;padding:10px 22px;border-radius:30px;font-size:.85rem;text-transform:uppercase;
+  letter-spacing:.5px;display:inline-flex;align-items:center;gap:8px;box-shadow:var(--shadow-gold);
+  transition:transform .3s var(--ease-spring);
+}
+.banner-explore-btn:hover{transform:translateY(-2px) scale(1.03)}
+.banner-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;
+  background:rgba(0,0,0,.5);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.2);color:#fff;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.25s;z-index:5;font-size:.85rem;
+}
+.banner-arrow:hover{background:var(--gold);color:#000;border-color:transparent}
+.banner-arrow.prev{left:16px}
+.banner-arrow.next{right:16px}
+.banner-dots{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5}
+.banner-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;transition:.25s}
+.banner-dot.active{background:var(--gold);width:22px;border-radius:5px}
+@media(max-width:600px){
+  .banner-carousel{aspect-ratio:16/9;border-radius:14px}
+  .banner-explore-btn{left:14px;bottom:14px;padding:8px 16px;font-size:.72rem}
+  .banner-arrow{width:32px;height:32px;font-size:.75rem}
+}
+
+/* ---------- Admin: banner slot manager ---------- */
+.banner-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:900px){.banner-slots{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.banner-slots{grid-template-columns:1fr}}
+.banner-slot{
+  background:var(--card-glass);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px;transition:border-color .3s;
+}
+.banner-slot:hover{border-color:var(--border-gold)}
+.banner-slot-preview{
+  position:relative;aspect-ratio:1756/450;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.03);
+  border:1px dashed var(--border);
+}
+.banner-slot-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.banner-slot-empty{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;color:var(--muted);font-size:.8rem;
+}
+.banner-slot-empty i{font-size:1.6rem;opacity:.5}
+.banner-slot-remove{
+  position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.7);
+  border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;
+}
+.banner-slot-remove:hover{background:var(--danger)}
 
 /* Category tag on a product card */
 .cat-tag{
