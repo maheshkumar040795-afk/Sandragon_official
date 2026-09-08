@@ -136,7 +136,9 @@ function render() {
       price: Number(p.price),
       color: selectedColor,
       size: selectedSize,
-      qty
+      qty,
+      vendorName: p.vendorName || '',
+      vendorPhone: p.vendorPhone || ''
     });
     if (confirm('Added to cart! Go to cart now?')) {
       window.location.href = 'cart.html';

@@ -51,8 +51,20 @@ function buildConfirmMessage(o) {
   return `Hi ${o.customer.name}! 🙏 Thank you for shopping with SANDRAGON.\n\nYour order #${o.id.slice(-8).toUpperCase()} has been confirmed:\n${itemLines}\n\nTotal Paid: ₹${Number(o.totalAmount).toLocaleString('en-IN')}\n\nWe're preparing your order now and will share tracking details soon. For any queries, reach us here anytime. 🐉`;
 }
 
-function buildVendorMessage(o) {
-  const itemLines = o.items.map(i =>
+function groupItemsByVendor(o) {
+  const groups = {};
+  o.items.forEach(i => {
+    const phone = i.vendorPhone || business.vendorPhone;
+    const name = i.vendorName || 'Default Vendor';
+    const key = phone;
+    if (!groups[key]) groups[key] = { vendorName: name, vendorPhone: phone, items: [] };
+    groups[key].items.push(i);
+  });
+  return Object.values(groups);
+}
+
+function buildVendorMessage(o, group) {
+  const itemLines = group.items.map(i =>
     `• ${i.name}${i.color ? ' - Color: ' + i.color : ''}${i.size ? ' - Size: ' + i.size : ''} x${i.qty}`
   ).join('\n');
   return `New order to prepare — SANDRAGON #${o.id.slice(-8).toUpperCase()}\n\nItems:\n${itemLines}\n\nShip to:\n${o.customer.name}\n${o.customer.address}\nPincode: ${o.customer.pincode}\nPhone: ${o.customer.phone}\n\nPlease pack and courier at the earliest, and share the AWB/tracking number once dispatched. Thank you!`;
@@ -70,9 +82,9 @@ function openOrder(id) {
   document.getElementById('modalOrderId').textContent = '#' + o.id.slice(-8).toUpperCase();
   document.getElementById('modalOrderBody').innerHTML = `
     <table style="margin-bottom:16px">
-      <thead><tr><th>Item</th><th>Color</th><th>Size</th><th>Qty</th><th>Price</th></tr></thead>
+      <thead><tr><th>Item</th><th>Color</th><th>Size</th><th>Qty</th><th>Price</th><th>Vendor</th></tr></thead>
       <tbody>
-        ${o.items.map(i => `<tr><td>${i.name}</td><td>${i.color || '—'}</td><td>${i.size || '—'}</td><td>${i.qty}</td><td>₹${i.price}</td></tr>`).join('')}
+        ${o.items.map(i => `<tr><td>${i.name}</td><td>${i.color || '—'}</td><td>${i.size || '—'}</td><td>${i.qty}</td><td>₹${i.price}</td><td>${i.vendorName || '—'}${i.vendorPhone ? '<br><span class="stock-note">' + i.vendorPhone + '</span>' : ''}</td></tr>`).join('')}
       </tbody>
     </table>
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
@@ -81,7 +93,26 @@ function openOrder(id) {
   `;
 
   document.getElementById('confirmPreview').textContent = buildConfirmMessage(o);
-  document.getElementById('vendorPreview').textContent = buildVendorMessage(o);
+
+  const vendorGroups = groupItemsByVendor(o);
+  const vendorContainer = document.getElementById('vendorShareContainer');
+  vendorContainer.innerHTML = vendorGroups.map((g, gi) => `
+    <div style="margin-bottom:14px">
+      <div class="stock-note mb-10"><strong>${g.vendorName}</strong> · ${g.vendorPhone}</div>
+      <div class="whatsapp-preview">${buildVendorMessage(o, g)}</div>
+      <button class="btn small outline" data-vendor-send="${gi}"><i class="fab fa-whatsapp"></i> Share with ${g.vendorName}</button>
+    </div>
+  `).join('');
+  vendorContainer.querySelectorAll('[data-vendor-send]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const g = vendorGroups[+btn.dataset.vendorSend];
+      const text = encodeURIComponent(buildVendorMessage(o, g));
+      window.open(`https://wa.me/${g.vendorPhone}?text=${text}`, '_blank');
+      await updateDoc(doc(db, 'orders', currentOrderId), { vendorShared: true, status: o.status === 'placed' ? 'packed' : o.status });
+      await loadOrders();
+    });
+  });
+
   document.getElementById('courierNameInput').value = o.courierName || '';
   document.getElementById('awbInput').value = o.awbNumber || '';
 
@@ -111,14 +142,6 @@ document.getElementById('sendConfirmWhatsAppBtn').addEventListener('click', () =
   const o = ordersCache.find(x => x.id === currentOrderId);
   const text = encodeURIComponent(buildConfirmMessage(o));
   window.open(`https://wa.me/91${o.customer.phone}?text=${text}`, '_blank');
-});
-
-document.getElementById('sendVendorWhatsAppBtn').addEventListener('click', async () => {
-  const o = ordersCache.find(x => x.id === currentOrderId);
-  const text = encodeURIComponent(buildVendorMessage(o));
-  window.open(`https://wa.me/${business.vendorPhone}?text=${text}`, '_blank');
-  await updateDoc(doc(db, 'orders', currentOrderId), { vendorShared: true, status: o.status === 'placed' ? 'packed' : o.status });
-  await loadOrders();
 });
 
 document.getElementById('saveDispatchBtn').addEventListener('click', async () => {

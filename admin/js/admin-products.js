@@ -68,6 +68,8 @@ function resetModal() {
   document.getElementById('fDescription').value = '';
   document.getElementById('fPrice').value = '';
   document.getElementById('fStock').value = '';
+  document.getElementById('fVendorName').value = '';
+  document.getElementById('fVendorPhone').value = '';
   document.getElementById('fActive').checked = true;
   renderImagePreview();
   renderTags('colorTagInput', 'colorInputField', colors);
@@ -87,6 +89,8 @@ async function openModal(id) {
       document.getElementById('fDescription').value = p.description || '';
       document.getElementById('fPrice').value = p.price || '';
       document.getElementById('fStock').value = p.stock ?? '';
+      document.getElementById('fVendorName').value = p.vendorName || '';
+      document.getElementById('fVendorPhone').value = p.vendorPhone || '';
       document.getElementById('fActive').checked = !!p.active;
       uploadedImages = p.images || [];
       colors = p.colors || [];
@@ -173,6 +177,8 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     description: document.getElementById('fDescription').value.trim(),
     price,
     stock: document.getElementById('fStock').value === '' ? null : Number(document.getElementById('fStock').value),
+    vendorName: document.getElementById('fVendorName').value.trim(),
+    vendorPhone: document.getElementById('fVendorPhone').value.trim(),
     images: uploadedImages,
     colors,
     sizes,
