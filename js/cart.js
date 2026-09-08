@@ -2,6 +2,21 @@ import { db, collection, addDoc, serverTimestamp } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
 import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
 
+// DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
+// payment gateway and creates the order directly — so the full customer → admin
+// flow can be tested before Razorpay is configured. Remove automatically once
+// real keys are set in config.js.
+const DEMO_MODE = razorpayConfig.keyId === "YOUR_RAZORPAY_KEY_ID" || !razorpayConfig.keyId;
+
+if (DEMO_MODE) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('payBtn');
+    if (btn) btn.innerHTML = '<i class="fas fa-flask"></i> Place Order (Demo Mode — No Payment)';
+    const note = document.querySelector('.cart-summary .stock-note');
+    if (note) note.innerHTML = '⚠️ Demo mode: Razorpay isn\'t configured yet, so this places a test order with no real payment.';
+  });
+}
+
 const cartItemsEl = document.getElementById('cartItems');
 const checkoutSection = document.getElementById('checkoutSection');
 
@@ -87,6 +102,33 @@ async function handlePayment() {
 
   const payBtn = document.getElementById('payBtn');
   payBtn.disabled = true;
+
+  if (DEMO_MODE) {
+    payBtn.innerHTML = 'Placing demo order...';
+    try {
+      const orderDoc = await addDoc(collection(db, 'orders'), {
+        customer: { name, phone, email, address, pincode },
+        items: cart,
+        totalAmount: amount,
+        paymentId: 'DEMO_' + Date.now(),
+        razorpayOrderId: 'demo_order',
+        status: 'placed',
+        vendorShared: false,
+        awbNumber: '',
+        courierName: '',
+        createdAt: serverTimestamp()
+      });
+      clearCart();
+      window.location.href = `order-success.html?orderId=${orderDoc.id}`;
+    } catch (err) {
+      console.error(err);
+      alert('Could not place the demo order. Check the console for details.');
+      payBtn.disabled = false;
+      payBtn.innerHTML = '<i class="fas fa-flask"></i> Place Order (Demo Mode — No Payment)';
+    }
+    return;
+  }
+
   payBtn.textContent = 'Preparing checkout...';
 
   try {

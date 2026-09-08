@@ -15,7 +15,7 @@ export const firebaseConfig = {
 
 // ---- Cloudinary (unsigned upload preset for product images) ----
 export const cloudinaryConfig = {
-  cloudName: "YOUR_CLOUDINARY_CLOUD_NAME",
+  cloudName: "ly0b9cqe",
   uploadPreset: "sandragon_unsigned" // create this in Cloudinary > Settings > Upload
 };
 
