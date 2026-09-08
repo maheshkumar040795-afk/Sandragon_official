@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SANDRAGON | Premium Store</title>
+<meta name="description" content="SANDRAGON — official online store.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="assets/logo.jpeg">
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+    <nav class="nav-links" id="navLinks">
+      <a href="index.html" class="active">Shop</a>
+      <a href="#" id="trackOrderLink">Track Order</a>
+      <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
+        <span class="cart-count" id="cartCount">0</span>
+      </a>
+    </nav>
+    <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+  </div>
+</header>
+
+<section class="hero">
+  <h1>SAN<span class="accent">D</span>RAGON</h1>
+  <p>Crafted for those who wear their edge with elegance. Discover the latest drop.</p>
+</section>
+
+<div class="container">
+  <h2 class="section-title">The Collection</h2>
+  <div class="product-grid" id="productGrid">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<footer>
+  <div class="brand" style="justify-content:center;margin-bottom:10px">
+    <img src="assets/logo.jpeg" alt="SANDRAGON" style="height:32px">SAN<span class="d">D</span>RAGON
+  </div>
+  <div class="social">
+    <a href="https://www.instagram.com/sandragonog" target="_blank"><i class="fab fa-instagram"></i></a>
+    <a href="https://wa.me/919791162430" target="_blank"><i class="fab fa-whatsapp"></i></a>
+    <a href="mailto:sandragonog@gmail.com"><i class="fas fa-envelope"></i></a>
+  </div>
+  <p>+91 97911 62430 &nbsp;|&nbsp; +91 90258 71881 &nbsp;|&nbsp; sandragonog@gmail.com</p>
+  <p class="mt-10">&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
+</footer>
+
+<div class="floating-buttons">
+  <a href="https://wa.me/919791162430" class="float-btn whatsapp-btn" target="_blank"><i class="fab fa-whatsapp"></i></a>
+  <a href="tel:+919791162430" class="float-btn call-btn"><i class="fas fa-phone"></i></a>
+</div>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('hamburgerBtn').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('active');
+});
+document.getElementById('trackOrderLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  const phone = prompt('Enter the phone number used for your order to track it:');
+  if (phone) window.location.href = `track-order.html?phone=${encodeURIComponent(phone)}`;
+});
+</script>
+<script type="module" src="js/store.js"></script>
+</body>
+</html>

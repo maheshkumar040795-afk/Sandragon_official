@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login | SANDRAGON</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="login-box">
+  <div class="text-center mb-10">
+    <img src="../assets/logo.jpeg" alt="SANDRAGON" style="height:60px;margin:0 auto 14px">
+    <h2>Admin Portal</h2>
+  </div>
+  <div class="form-group">
+    <label>Email</label>
+    <input type="email" id="email">
+  </div>
+  <div class="form-group">
+    <label>Password</label>
+    <input type="password" id="password">
+  </div>
+  <div id="errorMsg" class="stock-note out mb-10" style="display:none"></div>
+  <button class="btn" id="loginBtn" style="width:100%">Sign In</button>
+</div>
+
+<script type="module" src="js/admin-auth.js"></script>
+</body>
+</html>

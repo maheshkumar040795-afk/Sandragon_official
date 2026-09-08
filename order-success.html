@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Confirmed | SANDRAGON</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="assets/logo.jpeg">
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+  </div>
+</header>
+
+<div class="container text-center" style="padding:80px 20px">
+  <i class="fas fa-check-circle gold" style="font-size:4rem;margin-bottom:20px"></i>
+  <h1>Order Confirmed!</h1>
+  <p class="mt-10" style="color:var(--muted)">Thank you for shopping with SANDRAGON. Your order reference:</p>
+  <p class="gold" style="font-size:1.2rem;font-weight:700" id="orderIdDisplay"></p>
+  <p class="mt-10" style="color:var(--muted)">We'll confirm your order on WhatsApp shortly with dispatch details.</p>
+  <a href="index.html" class="btn mt-20">Continue Shopping</a>
+</div>
+
+<footer>
+  <p>&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+const params = new URLSearchParams(window.location.search);
+document.getElementById('orderIdDisplay').textContent = '#' + (params.get('orderId') || '').slice(-8).toUpperCase();
+</script>
+</body>
+</html>

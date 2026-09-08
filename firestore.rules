@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      // Add every admin's Firebase Auth email here to match js/config.js adminEmails
+      return request.auth != null &&
+        request.auth.token.email in ['sandragonofficial@gmail.com'];
+    }
+
+    // Products: anyone can read, only admin can write
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders: anyone can create an order (checkout), only admin can read/update the list.
+    // Customer order tracking reads happen through a phone-number query — since Firestore
+    // rules can't verify "the phone is really theirs", keep tracking read-only and non-sensitive
+    // (no card/payment secrets are ever stored), or move tracking behind a Cloud Function later.
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product | SANDRAGON</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="assets/logo.jpeg">
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+    <nav class="nav-links" id="navLinks">
+      <a href="index.html">Shop</a>
+      <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
+        <span class="cart-count" id="cartCount">0</span>
+      </a>
+    </nav>
+    <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+  </div>
+</header>
+
+<div class="container" id="pdContainer">
+  <div class="spinner mt-20"></div>
+</div>
+
+<footer>
+  <p>&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
+</footer>
+
+<div class="floating-buttons">
+  <a href="https://wa.me/919791162430" class="float-btn whatsapp-btn" target="_blank"><i class="fab fa-whatsapp"></i></a>
+  <a href="tel:+919791162430" class="float-btn call-btn"><i class="fas fa-phone"></i></a>
+</div>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('hamburgerBtn').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('active');
+});
+</script>
+<script type="module" src="js/product-detail.js"></script>
+</body>
+</html>

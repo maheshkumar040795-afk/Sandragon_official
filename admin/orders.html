@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orders | SANDRAGON Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="brand"><img src="../assets/logo.jpeg" style="height:30px"> SAN<span class="d">D</span>RAGON</div>
+    <a href="dashboard.html"><i class="fas fa-box"></i> Products</a>
+    <a href="orders.html" class="active"><i class="fas fa-receipt"></i> Orders</a>
+    <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-header">
+      <h2>Orders</h2>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Placed</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="ordersTableBody">
+        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </main>
+</div>
+
+<!-- Order Detail / Action Modal -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal" style="max-width:600px">
+    <h3>Order <span id="modalOrderId"></span></h3>
+    <div id="modalOrderBody"></div>
+
+    <div class="mt-20">
+      <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 1 · Confirm order with customer</label>
+      <div class="whatsapp-preview" id="confirmPreview"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn small" id="markConfirmedBtn">Mark as Confirmed</button>
+        <button class="btn small outline" id="sendConfirmWhatsAppBtn"><i class="fab fa-whatsapp"></i> Open WhatsApp to Send</button>
+      </div>
+    </div>
+
+    <div class="mt-20">
+      <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 2 · Share order with vendor for preparation</label>
+      <div class="whatsapp-preview" id="vendorPreview"></div>
+      <button class="btn small outline" id="sendVendorWhatsAppBtn"><i class="fab fa-whatsapp"></i> Share with Vendor</button>
+    </div>
+
+    <div class="mt-20">
+      <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 3 · Dispatch details (once vendor packs & couriers)</label>
+      <div class="form-group">
+        <label>Courier Name</label>
+        <input type="text" id="courierNameInput" placeholder="e.g. Delhivery, DTDC, Blue Dart">
+      </div>
+      <div class="form-group">
+        <label>AWB / Tracking Number</label>
+        <input type="text" id="awbInput" placeholder="Tracking number from courier">
+      </div>
+      <button class="btn small" id="saveDispatchBtn">Save & Mark Shipped</button>
+      <div class="whatsapp-preview mt-10" id="dispatchPreview" style="display:none"></div>
+      <button class="btn small outline mt-10" id="sendDispatchWhatsAppBtn" style="display:none"><i class="fab fa-whatsapp"></i> Send Tracking to Customer</button>
+    </div>
+
+    <div class="mt-20">
+      <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 4 · Final status</label>
+      <button class="btn small outline" id="markDeliveredBtn">Mark as Delivered</button>
+    </div>
+
+    <button class="btn outline mt-20" id="closeModalBtn" style="width:100%">Close</button>
+  </div>
+</div>
+
+<script type="module" src="js/admin-orders.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Order | SANDRAGON</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="assets/logo.jpeg">
+</head>
+<body>
+
+<header class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON">SAN<span class="d">D</span>RAGON</a>
+  </div>
+</header>
+
+<div class="container" style="padding:50px 0;max-width:700px">
+  <h2 class="section-title" style="margin-top:0">Track Your Order</h2>
+  <div class="form-group">
+    <input type="tel" id="phoneInput" placeholder="Enter your 10-digit phone number">
+  </div>
+  <button class="btn" id="searchBtn" style="width:100%">Search</button>
+  <div id="results" class="mt-20"></div>
+</div>
+
+<footer>
+  <p>&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+<script type="module" src="js/track-order.js"></script>
+</body>
+</html>

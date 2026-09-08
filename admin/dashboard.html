@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products | SANDRAGON Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../css/style.css">
+<script src="https://upload-widget.cloudinary.com/global/all.js"></script>
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="brand"><img src="../assets/logo.jpeg" style="height:30px"> SAN<span class="d">D</span>RAGON</div>
+    <a href="dashboard.html" class="active"><i class="fas fa-box"></i> Products</a>
+    <a href="orders.html"><i class="fas fa-receipt"></i> Orders</a>
+    <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-header">
+      <h2>Products</h2>
+      <button class="btn" id="addProductBtn"><i class="fas fa-plus"></i> Add Product</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="productsTableBody">
+        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </main>
+</div>
+
+<!-- Add/Edit Product Modal -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Product</h3>
+    <input type="hidden" id="productId">
+
+    <div class="form-group">
+      <label>Product Name *</label>
+      <input type="text" id="fName">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="fDescription" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Price (₹) *</label>
+      <input type="number" id="fPrice" min="0">
+    </div>
+    <div class="form-group">
+      <label>Stock (total units)</label>
+      <input type="number" id="fStock" min="0">
+    </div>
+
+    <div class="form-group">
+      <label>Product Images</label>
+      <div class="image-upload-grid" id="imagePreviewGrid"></div>
+      <button type="button" class="btn outline small" id="uploadImagesBtn"><i class="fas fa-upload"></i> Upload Images (Cloudinary)</button>
+    </div>
+
+    <div class="form-group">
+      <label>Colors (type a name, press Enter)</label>
+      <div class="multi-tag-input" id="colorTagInput">
+        <input type="text" class="tag-chip-input" id="colorInputField" placeholder="e.g. Black">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Sizes (type a size, press Enter)</label>
+      <div class="multi-tag-input" id="sizeTagInput">
+        <input type="text" class="tag-chip-input" id="sizeInputField" placeholder="e.g. M">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="fActive" style="width:auto" checked> Visible in store
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn" id="saveProductBtn" style="flex:1">Save Product</button>
+      <button class="btn outline" id="cancelModalBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/admin-products.js"></script>
+</body>
+</html>
