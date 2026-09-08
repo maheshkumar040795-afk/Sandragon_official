@@ -17,6 +17,18 @@
     document.body.appendChild(o2);
   }
 
+  /* Helper: querySelectorAll only matches DESCENDANTS, never the root node
+     itself. Since store.js/cart.js/admin-*.js often insert the exact
+     element we want to target (e.g. grid.appendChild(cardEl)), we must
+     also check the root node against the selector directly, or it is
+     silently skipped forever. */
+  function collect(root, selector) {
+    const out = [];
+    if (root.nodeType === 1 && root.matches && root.matches(selector)) out.push(root);
+    if (root.querySelectorAll) out.push(...root.querySelectorAll(selector));
+    return out;
+  }
+
   /* ---------- 2. Scroll reveal (IntersectionObserver) ---------- */
   const revealSelectors = '.product-card, .cart-item, .pd-wrap, .modal, .login-box, tbody tr, .section-title, .admin-header, .empty-state';
   const io = new IntersectionObserver((entries) => {
@@ -30,7 +42,7 @@
 
   function observeReveal(root) {
     if (reduceMotion) return;
-    root.querySelectorAll(revealSelectors).forEach((el) => {
+    collect(root, revealSelectors).forEach((el) => {
       if (!el.classList.contains('in-view')) io.observe(el);
     });
   }
@@ -52,7 +64,7 @@
     });
   }
   function bindTilts(root) {
-    root.querySelectorAll(tiltSelectors).forEach(applyTilt);
+    collect(root, tiltSelectors).forEach(applyTilt);
   }
 
   /* ---------- 4. Magnetic buttons ---------- */
@@ -70,7 +82,7 @@
     });
   }
   function bindMagnetic(root) {
-    root.querySelectorAll('.btn:not(.small)').forEach(applyMagnetic);
+    collect(root, '.btn:not(.small)').forEach(applyMagnetic);
   }
 
   /* ---------- 5. Run on load + watch for dynamically injected content ---------- */
@@ -93,6 +105,19 @@
     });
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
+
+  /* ---------- 5b. Safety net ----------
+     Belt-and-braces: content must never stay invisible because of a
+     missed observation. Anything still not revealed after a beat gets
+     force-shown, so a reveal-animation bug can degrade gracefully
+     instead of hiding real products/orders/etc. */
+  function forceRevealAll() {
+    document.querySelectorAll(revealSelectors.split(',').map(s => s.trim()).join(',')).forEach((el) => {
+      el.classList.add('in-view');
+    });
+  }
+  setTimeout(forceRevealAll, 2500);
+  window.addEventListener('load', () => setTimeout(forceRevealAll, 800));
 
   /* ---------- 6. Navbar shadow-on-scroll ---------- */
   const nav = document.querySelector('header.navbar');
