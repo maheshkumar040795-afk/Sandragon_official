@@ -35,5 +35,6 @@ document.getElementById('year').textContent = new Date().getFullYear();
 const params = new URLSearchParams(window.location.search);
 document.getElementById('orderIdDisplay').textContent = '#' + (params.get('orderId') || '').slice(-8).toUpperCase();
 </script>
+<script src="js/premium.js" defer></script>
 </body>
 </html>

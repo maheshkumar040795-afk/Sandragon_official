@@ -29,8 +29,13 @@
 </header>
 
 <section class="hero">
-  <h1>SAN<span class="accent">D</span>RAGON</h1>
-  <p>Crafted for those who wear their edge with elegance. Discover the latest drop.</p>
+  <video autoplay muted loop playsinline class="hero-video">
+    <source src="https://res.cloudinary.com/ly0b9cqe/video/upload/q_auto:best,f_auto/v1788865681/Homepage_structure_and_dealer_de__202609081635.mp4" type="video/mp4">
+  </video>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <a href="#productGrid" class="btn">Explore Our Products</a>
+  </div>
 </section>
 
 <div class="container">
@@ -70,5 +75,6 @@ document.getElementById('trackOrderLink').addEventListener('click', (e) => {
 });
 </script>
 <script type="module" src="js/store.js"></script>
+<script src="js/premium.js" defer></script>
 </body>
 </html>

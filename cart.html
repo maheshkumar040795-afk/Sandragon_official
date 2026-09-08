@@ -27,6 +27,7 @@
 </header>
 
 <div class="container cart-page">
+  <a class="back-btn" onclick="history.length > 1 ? history.back() : window.location.href='index.html'"><i class="fas fa-arrow-left"></i> Back</a>
   <h2 class="section-title" style="margin-top:0">Your Cart</h2>
   <div id="cartItems"></div>
 
@@ -78,5 +79,6 @@ document.getElementById('hamburgerBtn').addEventListener('click', () => {
 });
 </script>
 <script type="module" src="js/cart.js"></script>
+<script src="js/premium.js" defer></script>
 </body>
 </html>
