@@ -3,6 +3,8 @@
 // #categoryMegaMenu in the page's markup and wires them up if present.
 import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
+import { getCustomer } from "./customer-store.js";
+import { openAccountModal } from "./account-gate.js";
 
 /* ---------------- Category mega-menu ---------------- */
 function buildMegaMenu() {
@@ -158,6 +160,25 @@ function setupSearch() {
 document.addEventListener('DOMContentLoaded', () => {
   buildMegaMenu();
   setupSearch();
+  buildAccountNav();
 });
+window.addEventListener('sandragon:customer-updated', buildAccountNav);
+
+/* ---------------- Nav account widget (customer name / sign in) ---------------- */
+function buildAccountNav() {
+  const nav = document.getElementById('navAccount');
+  if (!nav) return;
+  const customer = getCustomer();
+  if (customer) {
+    const firstName = (customer.name || '').split(' ')[0] || 'Account';
+    nav.innerHTML = `<a href="profile.html" class="nav-account-link"><i class="fas fa-circle-user"></i> ${firstName}</a>`;
+  } else {
+    nav.innerHTML = `<a href="#" class="nav-account-link" id="navSignInLink"><i class="fas fa-circle-user"></i> Sign In</a>`;
+    document.getElementById('navSignInLink')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      openAccountModal(() => buildAccountNav());
+    });
+  }
+}
 
 export { loadProductIndex, rankResults };

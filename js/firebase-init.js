@@ -1,7 +1,7 @@
 // Shared Firebase app/services initialization (v10 modular SDK via CDN)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc,
+  getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc,
   deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
@@ -16,7 +16,7 @@ const auth = getAuth(app);
 
 export {
   db, auth,
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, serverTimestamp, Timestamp,
   signInWithEmailAndPassword, onAuthStateChanged, signOut
 };

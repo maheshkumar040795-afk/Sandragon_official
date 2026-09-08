@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order Confirmed | SANDRAGON</title>
+<title>Order History | SANDRAGON</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="css/style.css?v=20260908">
@@ -27,7 +27,7 @@
         <a href="index.html" class="nav-cat-trigger">Categories <i class="fas fa-chevron-down"></i></a>
         <div class="mega-menu" id="categoryMegaMenu"></div>
       </div>
-      <a href="order-history.html">Order History</a>
+      <a href="order-history.html" class="active">Order History</a>
       <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
         <span class="cart-count" id="cartCount">0</span>
       </a>
@@ -38,13 +38,12 @@
   </div>
 </header>
 
-<div class="container text-center" style="padding:80px 20px">
-  <i class="fas fa-check-circle gold" style="font-size:4rem;margin-bottom:20px"></i>
-  <h1>Order Confirmed!</h1>
-  <p class="mt-10" style="color:var(--muted)">Thank you for shopping with SANDRAGON. Your order reference:</p>
-  <p class="gold" style="font-size:1.2rem;font-weight:700" id="orderIdDisplay"></p>
-  <p class="mt-10" style="color:var(--muted)">We'll confirm your order on WhatsApp shortly with dispatch details.</p>
-  <a href="index.html" class="btn mt-20">Continue Shopping</a>
+<div class="container" style="padding:50px 0;max-width:760px">
+  <a class="back-btn" onclick="history.length > 1 ? history.back() : window.location.href='index.html'"><i class="fas fa-arrow-left"></i> Back</a>
+  <h2 class="section-title" style="margin-top:0">Order History</h2>
+  <div id="orderList">
+    <div class="empty-state">Sign in to view your order history.</div>
+  </div>
 </div>
 
 <footer>
@@ -53,13 +52,12 @@
 
 <script>
 document.getElementById('year').textContent = new Date().getFullYear();
-const params = new URLSearchParams(window.location.search);
-document.getElementById('orderIdDisplay').textContent = '#' + (params.get('orderId') || '').slice(-8).toUpperCase();
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
   document.getElementById('navLinks').classList.toggle('active');
 });
 </script>
 <script type="module" src="js/nav-features.js?v=20260908"></script>
+<script type="module" src="js/order-history.js?v=20260908"></script>
 <script src="js/premium.js?v=20260908" defer></script>
 </body>
 </html>

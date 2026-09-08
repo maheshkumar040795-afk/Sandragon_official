@@ -1,6 +1,7 @@
 import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-init.js";
 import { addToCart } from "./cart-store.js";
 import { categoryName } from "./categories.js";
+import { ensureCustomer } from "./account-gate.js";
 
 const container = document.getElementById('pdContainer');
 const relatedSection = document.getElementById('relatedSection');
@@ -143,9 +144,12 @@ function render() {
       vendorName: p.vendorName || '',
       vendorPhone: p.vendorPhone || ''
     });
-    if (confirm('Added to cart! Go to cart now?')) {
+    // Gate on identity right after adding — guests get a quick
+    // create-account/sign-in step, returning customers sail straight
+    // through since ensureCustomer() resolves immediately for them.
+    ensureCustomer(() => {
       window.location.href = 'cart.html';
-    }
+    });
   });
 
   loadRelated(p);

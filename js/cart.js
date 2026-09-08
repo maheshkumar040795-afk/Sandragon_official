@@ -1,6 +1,7 @@
 import { db, collection, addDoc, serverTimestamp } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
 import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
+import { getCustomer, saveCustomer } from "./customer-store.js";
 
 // DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
 // payment gateway and creates the order directly — so the full customer → admin
@@ -28,7 +29,11 @@ function renderCart() {
     return;
   }
 
-  cartItemsEl.innerHTML = cart.map((item, i) => `
+  cartItemsEl.innerHTML = `
+    <div class="text-center mb-10">
+      <a href="index.html" class="btn outline small"><i class="fas fa-plus"></i> Add More Items</a>
+    </div>
+  ` + cart.map((item, i) => `
     <div class="cart-item">
       <img src="${item.image}" alt="${item.name}">
       <div>
@@ -78,6 +83,17 @@ function updateSummary() {
   document.getElementById('totalVal').textContent = `₹${total.toLocaleString('en-IN')}`;
 }
 
+function prefillFromCustomer() {
+  const c = getCustomer();
+  if (!c) return;
+  document.getElementById('custName').value = c.name || '';
+  document.getElementById('custPhone').value = c.phone || '';
+  document.getElementById('custEmail').value = c.email || '';
+  document.getElementById('custAddress').value = c.address || '';
+  document.getElementById('custPincode').value = c.pincode || '';
+}
+prefillFromCustomer();
+
 document.getElementById('payBtn').addEventListener('click', handlePayment);
 
 async function handlePayment() {
@@ -100,6 +116,11 @@ async function handlePayment() {
   if (!cart.length) return;
   const amount = cartTotal();
 
+  // Keep the lightweight account record in sync with whatever they just
+  // typed at checkout (covers both the normal gated flow and anyone who
+  // landed on cart.html directly without going through Add to Cart first).
+  try { await saveCustomer({ name, phone, email, address, pincode }); } catch (err) { console.warn('Could not sync customer record', err); }
+
   const payBtn = document.getElementById('payBtn');
   payBtn.disabled = true;
 
@@ -112,6 +133,7 @@ async function handlePayment() {
         totalAmount: amount,
         paymentId: 'DEMO_' + Date.now(),
         razorpayOrderId: 'demo_order',
+        paymentMode: 'Demo Order',
         status: 'placed',
         vendorShared: false,
         awbNumber: '',
@@ -188,6 +210,7 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, amount) {
       totalAmount: amount,
       paymentId: razorpayResponse.razorpay_payment_id,
       razorpayOrderId: razorpayResponse.razorpay_order_id,
+      paymentMode: 'Online (Razorpay)',
       status: 'placed',
       vendorShared: false,
       awbNumber: '',

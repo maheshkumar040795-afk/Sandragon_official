@@ -23,5 +23,12 @@ service cloud.firestore {
       allow read: if true;
       allow update, delete: if isAdmin();
     }
+
+    // Customers: lightweight "account" keyed by phone number, same trust model as
+    // orders above (no real auth — phone number is a convenience identifier, not a
+    // verified credential). No payment/card data is ever stored here.
+    match /customers/{phone} {
+      allow read, write: if true;
+    }
   }
 }
