@@ -20,7 +20,11 @@ async function initBannerCarousel() {
     <div class="banner-track">
       ${slides.map((s, i) => `
         <div class="banner-slide ${i === 0 ? 'active' : ''}" data-i="${i}">
-          <img src="${escapeHtml(s.url)}" alt="Banner ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}">
+          <div class="banner-bg" style="background-image:url('${escapeHtml(s.url)}')"></div>
+          <picture>
+            ${s.mobileUrl ? `<source media="(max-width: 600px)" srcset="${escapeHtml(s.mobileUrl)}">` : ''}
+            <img src="${escapeHtml(s.url)}" alt="Banner ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}">
+          </picture>
           <a href="${escapeHtml(s.link || 'index.html')}" class="banner-explore-btn">Explore <i class="fas fa-arrow-right"></i></a>
         </div>
       `).join('')}

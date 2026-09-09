@@ -205,12 +205,51 @@ header.navbar{
 
 @media(max-width:1000px){
   .nav-links{
-    position:fixed;top:66px;left:0;right:0;background:rgba(5,5,5,.96);backdrop-filter:blur(14px);
-    flex-direction:column;
+    /* header.navbar has backdrop-filter, which (per spec) makes it a
+       containing block for position:fixed descendants — so bottom:0 here
+       would resolve against the header's own ~66px box, not the real
+       viewport, and the menu would still only be as tall as its content.
+       height:calc(100vh - 66px) sidesteps that entirely since vh units
+       always reference the true viewport no matter the containing block,
+       guaranteeing this always covers the full remaining screen so
+       nothing scrolled-to behind it can ever show through.
+       Solid background with NO backdrop-filter here on purpose: this menu
+       is meant to be fully opaque, and stacking a second backdrop-filter
+       on a descendant of an element that already has one produced visible
+       compositing artifacts (page content bleeding through) in testing —
+       a plain solid fill sidesteps that entirely and is exactly what a
+       full-screen opaque menu should look like anyway. */
+    position:fixed;top:66px;left:0;right:0;height:calc(100vh - 66px);background:#0a0a0a;
+    flex-direction:column;align-items:stretch;
     padding:20px;border-bottom:1px solid var(--border);
-    transform:translateY(-150%);transition:.35s var(--ease);gap:16px;
-    max-height:calc(100vh - 66px);overflow-y:auto;
+    transform:translateY(-150%);transition:.35s var(--ease);gap:4px;
+    overflow-y:auto;
   }
+  /* Every row in the mobile menu gets the same full-width, left-aligned
+     treatment — before this, plain links were centered (inherited from
+     the desktop align-items:center) while .nav-cat-wrap (width:100%)
+     ended up left-aligned by accident, so the menu looked inconsistent:
+     "Categories" on the left, everything else floating in the middle. */
+  .nav-links > a,
+  .nav-links > .nav-cat-wrap,
+  .nav-links > .nav-account{
+    width:100%;
+  }
+  .nav-links > a,
+  .nav-links .nav-cat-trigger,
+  .nav-account-link{
+    justify-content:flex-start;padding:12px 4px;
+  }
+  .nav-links > a.cart-icon{
+    display:flex;align-items:center;gap:8px;justify-content:flex-start;
+  }
+  /* .cart-count is normally an absolutely-positioned notification dot
+     sitting on top of the bag icon (fine when cart-icon is compact/desktop
+     width) — now that this row spans the full menu width, "right:-4px"
+     would anchor it to the far right of the whole screen instead of next
+     to the icon. Drop back to normal inline flow here so it just sits
+     right after the "Cart" text like a plain count bubble. */
+  .nav-links .cart-count{position:static;top:auto;right:auto;box-shadow:none}
   .nav-links.active{transform:translateY(0)}
   .hamburger{display:flex}
   .nav-cat-wrap{width:100%}
@@ -241,9 +280,11 @@ header.navbar{
   aspect-ratio:1756/450;background:#111;
 }
 .banner-track{position:relative;width:100%;height:100%}
-.banner-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .6s var(--ease)}
+.banner-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .6s var(--ease);overflow:hidden}
 .banner-slide.active{opacity:1;visibility:visible}
-.banner-slide img{width:100%;height:100%;object-fit:cover;display:block}
+.banner-slide picture{display:block;width:100%;height:100%}
+.banner-slide img{width:100%;height:100%;object-fit:cover;display:block;position:relative}
+.banner-bg{display:none}
 .banner-explore-btn{
   position:absolute;left:28px;bottom:28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));
   color:#000;font-weight:700;padding:10px 22px;border-radius:30px;font-size:.85rem;text-transform:uppercase;
@@ -263,9 +304,29 @@ header.navbar{
 .banner-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;transition:.25s}
 .banner-dot.active{background:var(--gold);width:22px;border-radius:5px}
 @media(max-width:600px){
+  /* Mobile gets its own treatment instead of forcing the wide desktop
+     ratio to scale down into an unreadably-thin strip, or cropping it
+     into a squarer box and losing edge content (text/logos) — both were
+     tried and both had real problems. Instead: a taller box, the full
+     image always shown via object-fit:contain (nothing ever cropped),
+     and a blurred/darkened copy of the same image filling the space
+     around it so there's no dead empty bar. Admins can still upload a
+     purpose-cropped mobileUrl per slide for a pixel-perfect fit; this
+     is just the graceful fallback when they don't. */
   .banner-carousel{aspect-ratio:16/9;border-radius:14px}
-  .banner-explore-btn{left:14px;bottom:14px;padding:8px 16px;font-size:.72rem}
-  .banner-arrow{width:32px;height:32px;font-size:.75rem}
+  .banner-bg{
+    display:block;position:absolute;inset:0;background-size:cover;background-position:center;
+    filter:blur(22px) brightness(.5) saturate(1.15);transform:scale(1.15);
+  }
+  .banner-slide img{object-fit:contain;position:relative;z-index:1}
+  .banner-explore-btn{left:8px;bottom:8px;padding:4px 10px;font-size:.58rem;gap:4px;border-radius:16px;z-index:2}
+  .banner-explore-btn i{font-size:.55rem}
+  .banner-arrow{width:24px;height:24px;font-size:.6rem;z-index:2}
+  .banner-arrow.prev{left:6px}
+  .banner-arrow.next{right:6px}
+  .banner-dots{bottom:5px;gap:4px;z-index:2}
+  .banner-dot{width:5px;height:5px}
+  .banner-dot.active{width:14px}
 }
 
 /* ---------- Admin: banner slot manager ---------- */
@@ -292,6 +353,15 @@ header.navbar{
   border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;
 }
 .banner-slot-remove:hover{background:var(--danger)}
+.banner-mobile-row{display:flex;align-items:center;gap:12px}
+.banner-mobile-preview{
+  position:relative;width:56px;height:70px;border-radius:8px;overflow:hidden;flex-shrink:0;
+  background:rgba(255,255,255,.03);border:1px dashed var(--border);
+}
+.banner-mobile-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.banner-slot-empty.small{gap:4px}
+.banner-slot-empty.small i{font-size:1.1rem}
+.banner-slot-remove.small{width:20px;height:20px;top:4px;right:4px;font-size:.65rem}
 
 /* Category tag on a product card */
 .cat-tag{

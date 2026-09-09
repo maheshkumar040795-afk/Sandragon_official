@@ -161,8 +161,23 @@ document.addEventListener('DOMContentLoaded', () => {
   buildMegaMenu();
   setupSearch();
   buildAccountNav();
+  lockScrollWhileMenuOpen();
 });
 window.addEventListener('sandragon:customer-updated', buildAccountNav);
+
+/* ---------------- Mobile menu: lock background scroll while open ----------------
+   The inline per-page <script> toggles #navLinks' "active" class on hamburger
+   click; this just watches for that and locks/unlocks body scroll to match,
+   so the page can't be scrolled underneath the full-screen mobile menu. */
+function lockScrollWhileMenuOpen() {
+  const navLinks = document.getElementById('navLinks');
+  const hamburger = document.getElementById('hamburgerBtn');
+  if (!navLinks || !hamburger) return;
+  hamburger.addEventListener('click', () => {
+    // runs after the inline handler's toggle (attached earlier in the page)
+    document.body.style.overflow = navLinks.classList.contains('active') ? 'hidden' : '';
+  });
+}
 
 /* ---------------- Nav account widget (customer name / sign in) ---------------- */
 function buildAccountNav() {

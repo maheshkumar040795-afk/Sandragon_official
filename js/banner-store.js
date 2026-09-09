@@ -5,7 +5,7 @@ const MAX_SLIDES = 6;
 // Shown until the admin uploads real banners, so the carousel is never
 // empty on a fresh install.
 const DEFAULT_SLIDES = [
-  { url: "https://res.cloudinary.com/ly0b9cqe/image/upload/v1788887978/add_1.png", link: "" }
+  { url: "https://res.cloudinary.com/ly0b9cqe/image/upload/v1788887978/add_1.png", mobileUrl: "", link: "" }
 ];
 
 export async function getBannerSlides() {
