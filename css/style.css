@@ -304,13 +304,17 @@ header.navbar{
 .banner-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;transition:.25s}
 .banner-dot.active{background:var(--gold);width:22px;border-radius:5px}
 @media(max-width:600px){
-  /* Full-bleed edge-to-edge fill, matching what the client wants for real
-     banner content: no letterbox/blur frame top or bottom. This does mean
-     some cropping on very wide source images — for any slide where that
-     crops something important (logo/text right at the edge), admins can
-     upload a purpose-cropped mobileUrl for that specific slide instead of
-     relying on this default fit. */
-  .banner-carousel{aspect-ratio:var(--banner-ratio-mobile, 16/9);border-radius:14px}
+  /* Full image, zero cropping, zero letterbox frame — the only way to get
+     all three at once is to make the box match the image's real shape
+     exactly (same trick used for desktop above), rather than forcing a
+     fixed ratio like 16:9. The trade-off: on a very wide banner (like
+     1756×450), that does mean a visually shorter strip on a narrow phone
+     screen — but that's the honest consequence of "show 100% of the
+     photo, no cropping, no frame," which is what was asked for.
+     If a slide has its own purpose-made mobileUrl, that image's real
+     ratio (--banner-ratio-mobile) still takes priority over the shared
+     desktop image's ratio. */
+  .banner-carousel{aspect-ratio:var(--banner-ratio-mobile, var(--banner-ratio, 1756/450));border-radius:14px}
   .banner-slide img{object-fit:cover}
   .banner-explore-btn{left:8px;bottom:8px;padding:4px 10px;font-size:.58rem;gap:4px;border-radius:16px;z-index:2}
   .banner-explore-btn i{font-size:.55rem}
