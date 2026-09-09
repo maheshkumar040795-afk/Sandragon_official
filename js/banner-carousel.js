@@ -6,12 +6,35 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 }
 
+// Measures the ACTUAL uploaded image and sizes the carousel box to match
+// it exactly, instead of assuming every admin upload is pixel-perfect at
+// the recommended 1756×450. Even a small mismatch there was enough for
+// object-fit:cover to crop the top/bottom — matching the container to
+// whatever was really uploaded makes that impossible.
+function setRatioFromImage(url, cssVarName, root) {
+  if (!url) return;
+  const img = new Image();
+  img.onload = () => {
+    if (img.naturalWidth && img.naturalHeight) {
+      root.style.setProperty(cssVarName, `${img.naturalWidth} / ${img.naturalHeight}`);
+    }
+  };
+  img.src = url;
+}
+
 async function initBannerCarousel() {
   const root = document.getElementById('bannerCarousel');
   if (!root) return;
 
   const slides = await getBannerSlides();
   if (!slides.length) { root.style.display = 'none'; return; }
+
+  // Based on the first slide (a consistent batch upload is the realistic
+  // case). Desktop always matches the real image so it's never cropped.
+  // Mobile only gets a matched ratio when a dedicated mobileUrl exists —
+  // otherwise it deliberately keeps the fixed 16:9 edge-to-edge crop.
+  setRatioFromImage(slides[0].url, '--banner-ratio', root);
+  if (slides[0].mobileUrl) setRatioFromImage(slides[0].mobileUrl, '--banner-ratio-mobile', root);
 
   let current = 0;
   let timer = null;

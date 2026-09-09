@@ -277,7 +277,7 @@ header.navbar{
 .banner-carousel{
   position:relative;max-width:var(--maxw);margin:0 auto 44px;border-radius:var(--radius-lg);
   overflow:hidden;box-shadow:var(--shadow-premium);border:1px solid var(--border-gold);
-  aspect-ratio:1756/450;background:#111;
+  aspect-ratio:var(--banner-ratio, 1756/450);background:#111;
 }
 .banner-track{position:relative;width:100%;height:100%}
 .banner-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .6s var(--ease);overflow:hidden}
@@ -304,21 +304,14 @@ header.navbar{
 .banner-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);border:none;cursor:pointer;transition:.25s}
 .banner-dot.active{background:var(--gold);width:22px;border-radius:5px}
 @media(max-width:600px){
-  /* Mobile gets its own treatment instead of forcing the wide desktop
-     ratio to scale down into an unreadably-thin strip, or cropping it
-     into a squarer box and losing edge content (text/logos) — both were
-     tried and both had real problems. Instead: a taller box, the full
-     image always shown via object-fit:contain (nothing ever cropped),
-     and a blurred/darkened copy of the same image filling the space
-     around it so there's no dead empty bar. Admins can still upload a
-     purpose-cropped mobileUrl per slide for a pixel-perfect fit; this
-     is just the graceful fallback when they don't. */
-  .banner-carousel{aspect-ratio:16/9;border-radius:14px}
-  .banner-bg{
-    display:block;position:absolute;inset:0;background-size:cover;background-position:center;
-    filter:blur(22px) brightness(.5) saturate(1.15);transform:scale(1.15);
-  }
-  .banner-slide img{object-fit:contain;position:relative;z-index:1}
+  /* Full-bleed edge-to-edge fill, matching what the client wants for real
+     banner content: no letterbox/blur frame top or bottom. This does mean
+     some cropping on very wide source images — for any slide where that
+     crops something important (logo/text right at the edge), admins can
+     upload a purpose-cropped mobileUrl for that specific slide instead of
+     relying on this default fit. */
+  .banner-carousel{aspect-ratio:var(--banner-ratio-mobile, 16/9);border-radius:14px}
+  .banner-slide img{object-fit:cover}
   .banner-explore-btn{left:8px;bottom:8px;padding:4px 10px;font-size:.58rem;gap:4px;border-radius:16px;z-index:2}
   .banner-explore-btn i{font-size:.55rem}
   .banner-arrow{width:24px;height:24px;font-size:.6rem;z-index:2}
