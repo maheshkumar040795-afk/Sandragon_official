@@ -1,7 +1,8 @@
-import { db, collection, addDoc, serverTimestamp } from "./firebase-init.js";
+import { db, collection, addDoc, doc, getDoc, updateDoc, increment, serverTimestamp } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
 import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
 import { getCustomer, saveCustomer } from "./customer-store.js";
+import { toast } from "./toast.js";
 
 // DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
 // payment gateway and creates the order directly — so the full customer → admin
@@ -20,6 +21,8 @@ if (DEMO_MODE) {
 
 const cartItemsEl = document.getElementById('cartItems');
 const checkoutSection = document.getElementById('checkoutSection');
+
+let appliedCoupon = null; // { code, type, value, discountAmount }
 
 function renderCart() {
   const cart = getCart();
@@ -77,10 +80,80 @@ function renderCart() {
   updateSummary();
 }
 
+function computeDiscount(subtotal) {
+  if (!appliedCoupon) return 0;
+  const raw = appliedCoupon.type === 'percent'
+    ? subtotal * (appliedCoupon.value / 100)
+    : appliedCoupon.value;
+  return Math.min(Math.round(raw), subtotal);
+}
+
+function showCouponMsg(msg, ok) {
+  const el = document.getElementById('couponMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.className = `coupon-msg ${ok ? 'ok' : 'err'}`;
+}
+
 function updateSummary() {
-  const total = cartTotal();
-  document.getElementById('subtotalVal').textContent = `₹${total.toLocaleString('en-IN')}`;
+  const subtotal = cartTotal();
+  const discount = computeDiscount(subtotal);
+  const total = Math.max(0, subtotal - discount);
+  document.getElementById('subtotalVal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
   document.getElementById('totalVal').textContent = `₹${total.toLocaleString('en-IN')}`;
+  const discountRow = document.getElementById('discountRow');
+  if (discount > 0) {
+    discountRow.style.display = 'flex';
+    document.getElementById('discountVal').textContent = `-₹${discount.toLocaleString('en-IN')}`;
+  } else {
+    discountRow.style.display = 'none';
+  }
+}
+
+document.getElementById('applyCouponBtn')?.addEventListener('click', applyCoupon);
+document.getElementById('couponInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); }
+});
+
+async function applyCoupon() {
+  const input = document.getElementById('couponInput');
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+  const btn = document.getElementById('applyCouponBtn');
+  btn.disabled = true;
+  try {
+    const snap = await getDoc(doc(db, 'coupons', code));
+    if (!snap.exists() || snap.data().active === false) {
+      appliedCoupon = null;
+      showCouponMsg('Invalid or expired coupon code.', false);
+      updateSummary();
+      return;
+    }
+    const c = snap.data();
+    if (c.expiresAt?.toDate && c.expiresAt.toDate() < new Date()) {
+      appliedCoupon = null;
+      showCouponMsg('This coupon has expired.', false);
+      updateSummary();
+      return;
+    }
+    const subtotal = cartTotal();
+    if (c.minOrder && subtotal < Number(c.minOrder)) {
+      appliedCoupon = null;
+      showCouponMsg(`This coupon needs a minimum order of ₹${Number(c.minOrder).toLocaleString('en-IN')}.`, false);
+      updateSummary();
+      return;
+    }
+    appliedCoupon = { code, type: c.type, value: Number(c.value) };
+    const label = c.type === 'percent' ? `${c.value}% off` : `₹${Number(c.value).toLocaleString('en-IN')} off`;
+    showCouponMsg(`"${code}" applied — ${label}!`, true);
+    toast(`Coupon "${code}" applied!`, 'success');
+    updateSummary();
+  } catch (err) {
+    console.error(err);
+    showCouponMsg('Could not validate that coupon. Please try again.', false);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function prefillFromCustomer() {
@@ -104,17 +177,20 @@ async function handlePayment() {
   const pincode = document.getElementById('custPincode').value.trim();
 
   if (!name || !phone || !address || !pincode) {
-    alert('Please fill in all required delivery details.');
+    toast('Please fill in all required delivery details.', 'error');
     return;
   }
   if (!/^\d{10}$/.test(phone)) {
-    alert('Please enter a valid 10-digit phone number.');
+    toast('Please enter a valid 10-digit phone number.', 'error');
     return;
   }
 
   const cart = getCart();
   if (!cart.length) return;
-  const amount = cartTotal();
+  const subtotal = cartTotal();
+  const discountAmount = computeDiscount(subtotal);
+  const amount = Math.max(0, subtotal - discountAmount);
+  const couponMeta = appliedCoupon ? { code: appliedCoupon.code, discountAmount } : null;
 
   // Keep the lightweight account record in sync with whatever they just
   // typed at checkout (covers both the normal gated flow and anyone who
@@ -130,6 +206,8 @@ async function handlePayment() {
       const orderDoc = await addDoc(collection(db, 'orders'), {
         customer: { name, phone, email, address, pincode },
         items: cart,
+        subtotal,
+        coupon: couponMeta,
         totalAmount: amount,
         paymentId: 'DEMO_' + Date.now(),
         razorpayOrderId: 'demo_order',
@@ -140,11 +218,12 @@ async function handlePayment() {
         courierName: '',
         createdAt: serverTimestamp()
       });
+      await bumpCouponUsage();
       clearCart();
       window.location.href = `order-success.html?orderId=${orderDoc.id}`;
     } catch (err) {
       console.error(err);
-      alert('Could not place the demo order. Check the console for details.');
+      toast('Could not place the demo order. Check the console for details.', 'error');
       payBtn.disabled = false;
       payBtn.innerHTML = '<i class="fas fa-flask"></i> Place Order (Demo Mode — No Payment)';
     }
@@ -174,7 +253,7 @@ async function handlePayment() {
       prefill: { name, email, contact: phone },
       theme: { color: '#c9a227' },
       handler: async function (response) {
-        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, amount);
+        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, subtotal, amount, couponMeta);
       },
       modal: {
         ondismiss: function () {
@@ -186,13 +265,22 @@ async function handlePayment() {
     rzp.open();
   } catch (err) {
     console.error(err);
-    alert('Something went wrong starting the payment. Please try again.');
+    toast('Something went wrong starting the payment. Please try again.', 'error');
     payBtn.disabled = false;
     payBtn.innerHTML = '<i class="fas fa-lock"></i> Pay Securely with Razorpay';
   }
 }
 
-async function verifyAndSaveOrder(razorpayResponse, customer, cart, amount) {
+async function bumpCouponUsage() {
+  if (!appliedCoupon) return;
+  try {
+    await updateDoc(doc(db, 'coupons', appliedCoupon.code), { usageCount: increment(1) });
+  } catch (err) {
+    console.warn('Could not update coupon usage count', err);
+  }
+}
+
+async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, amount, couponMeta) {
   try {
     // 3. Verify payment signature server-side (Cloud Function)
     const verifyRes = await fetch(`${functionsBaseUrl}/verifyRazorpayPayment`, {
@@ -207,6 +295,8 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, amount) {
     const orderDoc = await addDoc(collection(db, 'orders'), {
       customer,
       items: cart,
+      subtotal,
+      coupon: couponMeta,
       totalAmount: amount,
       paymentId: razorpayResponse.razorpay_payment_id,
       razorpayOrderId: razorpayResponse.razorpay_order_id,
@@ -218,11 +308,12 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, amount) {
       createdAt: serverTimestamp()
     });
 
+    await bumpCouponUsage();
     clearCart();
     window.location.href = `order-success.html?orderId=${orderDoc.id}`;
   } catch (err) {
     console.error(err);
-    alert('Payment succeeded but we could not save your order. Please contact us on WhatsApp with your payment ID: ' + razorpayResponse.razorpay_payment_id);
+    toast('Payment succeeded but we could not save your order. Please contact us on WhatsApp with your payment ID: ' + razorpayResponse.razorpay_payment_id, 'error', 8000);
   }
 }
 

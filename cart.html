@@ -6,7 +6,7 @@
 <title>Cart & Checkout | SANDRAGON</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="css/style.css?v=20260908">
+<link rel="stylesheet" href="css/style.css?v=20260916">
 <link rel="icon" href="assets/logo.jpeg">
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
@@ -29,6 +29,9 @@
         <div class="mega-menu" id="categoryMegaMenu"></div>
       </div>
       <a href="order-history.html">Order History</a>
+      <a href="wishlist.html" class="cart-icon wishlist-nav-icon"><i class="fas fa-heart"></i> Wishlist
+        <span class="cart-count" id="wishlistCount">0</span>
+      </a>
       <a href="cart.html" class="active cart-icon"><i class="fas fa-shopping-bag"></i> Cart
         <span class="cart-count" id="cartCount">0</span>
       </a>
@@ -70,7 +73,13 @@
     </div>
 
     <div class="cart-summary">
+      <div class="coupon-box">
+        <input type="text" id="couponInput" placeholder="Have a coupon code?" style="text-transform:uppercase">
+        <button type="button" class="btn small outline" id="applyCouponBtn">Apply</button>
+      </div>
+      <div id="couponMsg" class="coupon-msg" style="display:none"></div>
       <div class="summary-row"><span>Subtotal</span><span id="subtotalVal">₹0</span></div>
+      <div class="summary-row" id="discountRow" style="display:none"><span>Discount</span><span id="discountVal" class="gold">-₹0</span></div>
       <div class="summary-row"><span>Shipping</span><span id="shippingVal">Free</span></div>
       <div class="summary-row total"><span>Total</span><span id="totalVal">₹0</span></div>
       <button class="btn mt-20" id="payBtn" style="width:100%">
@@ -93,6 +102,6 @@ document.getElementById('hamburgerBtn').addEventListener('click', () => {
 </script>
 <script type="module" src="js/nav-features.js"></script>
 <script type="module" src="js/cart.js"></script>
-<script src="js/premium.js?v=20260908" defer></script>
+<script src="js/premium.js?v=20260916" defer></script>
 </body>
 </html>

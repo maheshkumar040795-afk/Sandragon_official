@@ -2,16 +2,25 @@ import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-i
 import { addToCart } from "./cart-store.js";
 import { categoryName } from "./categories.js";
 import { ensureCustomer } from "./account-gate.js";
+import { toggleWishlist, isWishlisted } from "./wishlist-store.js";
+import { ratingAvg, starsHtml, fetchReviews, submitReview } from "./reviews.js";
+import { trackView, renderRecentlyViewed } from "./recently-viewed.js";
+import { toast } from "./toast.js";
 
 const container = document.getElementById('pdContainer');
 const relatedSection = document.getElementById('relatedSection');
+const reviewsSection = document.getElementById('reviewsSection');
+const recentSection = document.getElementById('recentlyViewedSection');
 const params = new URLSearchParams(window.location.search);
 const productId = params.get('id');
 
 let selectedColor = null;
 let selectedSize = null;
-let selectedImageIndex = 0;
 let productData = null;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
 
 async function loadProduct() {
   if (!productId) {
@@ -37,27 +46,37 @@ function render() {
   const images = (p.images && p.images.length) ? p.images : ['assets/logo.jpeg'];
   const colors = p.colors || [];
   const sizes = p.sizes || [];
-  const inStock = (p.stock === undefined) || Number(p.stock) > 0;
+  const stock = p.stock;
+  const inStock = (stock === undefined || stock === null) || Number(stock) > 0;
+  const lowStock = inStock && stock !== undefined && stock !== null && Number(stock) <= 5;
+  const wished = isWishlisted(productId);
+  const avg = ratingAvg(p);
 
   container.innerHTML = `
     <div class="pd-wrap">
       <div class="pd-gallery">
-        <div class="main-img"><img id="mainImg" src="${images[0]}" alt="${p.name}"></div>
+        <div class="main-img">
+          <img id="mainImg" src="${images[0]}" alt="${escapeHtml(p.name)}">
+          <button type="button" class="wishlist-heart pd-heart ${wished ? 'active' : ''}" id="pdWishBtn" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
+            <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
+          </button>
+        </div>
         <div class="thumb-row" id="thumbRow">
           ${images.map((img, i) => `<img src="${img}" data-i="${i}" class="${i === 0 ? 'active' : ''}">`).join('')}
         </div>
       </div>
       <div class="pd-info">
         ${p.category ? `<div class="cat-tag" style="position:static;display:inline-flex;margin-bottom:12px">${categoryName(p.category) || p.category}</div>` : ''}
-        <h1>${p.name}</h1>
+        <h1>${escapeHtml(p.name)}</h1>
+        ${starsHtml(avg, Number(p.ratingCount) || 0, 'md')}
         <div class="pd-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
-        <p class="pd-desc">${p.description || ''}</p>
+        <p class="pd-desc">${escapeHtml(p.description || '')}</p>
 
         ${colors.length ? `
         <div class="option-group">
           <label>Color</label>
           <div class="option-pills" id="colorPills">
-            ${colors.map(c => `<div class="pill" data-color="${c}">${c}</div>`).join('')}
+            ${colors.map(c => `<div class="pill" data-color="${c}">${escapeHtml(c)}</div>`).join('')}
           </div>
         </div>` : ''}
 
@@ -65,7 +84,7 @@ function render() {
         <div class="option-group">
           <label>Size</label>
           <div class="option-pills" id="sizePills">
-            ${sizes.map(s => `<div class="pill" data-size="${s}">${s}</div>`).join('')}
+            ${sizes.map(s => `<div class="pill" data-size="${s}">${escapeHtml(s)}</div>`).join('')}
           </div>
         </div>` : ''}
 
@@ -76,14 +95,16 @@ function render() {
             <span id="qtyVal">1</span>
             <button class="qty-btn" id="qtyPlus">+</button>
           </div>
-          <div class="stock-note ${inStock ? '' : 'out'}" id="stockNote">
-            ${inStock ? (p.stock !== undefined ? `${p.stock} in stock` : '') : 'Out of stock'}
+          <div class="stock-note ${!inStock ? 'out' : lowStock ? 'low' : ''}" id="stockNote">
+            ${!inStock ? 'Out of stock' : lowStock ? `Only ${stock} left — order soon!` : (stock !== undefined && stock !== null ? `${stock} in stock` : '')}
           </div>
         </div>
 
-        <button class="btn" id="addToCartBtn" ${inStock ? '' : 'disabled'} style="width:100%">
-          <i class="fas fa-shopping-bag"></i> Add to Cart
-        </button>
+        <div style="display:flex;gap:10px">
+          <button class="btn" id="addToCartBtn" ${inStock ? '' : 'disabled'} style="width:100%">
+            <i class="fas fa-shopping-bag"></i> Add to Cart
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -97,11 +118,20 @@ function render() {
     });
   });
 
+  // Wishlist
+  document.getElementById('pdWishBtn').addEventListener('click', () => {
+    const btn = document.getElementById('pdWishBtn');
+    const added = toggleWishlist({ productId, id: productId, name: p.name, image: images[0], price: Number(p.price) });
+    btn.classList.toggle('active', added);
+    btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
+    toast(added ? `Added "${p.name}" to your wishlist` : `Removed "${p.name}" from your wishlist`, 'wishlist');
+  });
+
   // Color selection
   const colorPills = document.querySelectorAll('#colorPills .pill');
   colorPills.forEach(pill => {
     pill.addEventListener('click', () => {
-      colorPills.forEach(p => p.classList.remove('active'));
+      colorPills.forEach(pp => pp.classList.remove('active'));
       pill.classList.add('active');
       selectedColor = pill.dataset.color;
     });
@@ -112,7 +142,7 @@ function render() {
   const sizePills = document.querySelectorAll('#sizePills .pill');
   sizePills.forEach(pill => {
     pill.addEventListener('click', () => {
-      sizePills.forEach(p => p.classList.remove('active'));
+      sizePills.forEach(pp => pp.classList.remove('active'));
       pill.classList.add('active');
       selectedSize = pill.dataset.size;
     });
@@ -131,8 +161,8 @@ function render() {
 
   // Add to cart
   document.getElementById('addToCartBtn').addEventListener('click', () => {
-    if (colors.length && !selectedColor) { alert('Please select a color.'); return; }
-    if (sizes.length && !selectedSize) { alert('Please select a size.'); return; }
+    if (colors.length && !selectedColor) { toast('Please select a color.', 'error'); return; }
+    if (sizes.length && !selectedSize) { toast('Please select a size.', 'error'); return; }
     addToCart({
       productId,
       name: p.name,
@@ -144,6 +174,7 @@ function render() {
       vendorName: p.vendorName || '',
       vendorPhone: p.vendorPhone || ''
     });
+    toast(`Added "${p.name}" to your cart`, 'success');
     // Gate on identity right after adding — guests get a quick
     // create-account/sign-in step, returning customers sail straight
     // through since ensureCustomer() resolves immediately for them.
@@ -152,11 +183,11 @@ function render() {
     });
   });
 
-  loadRelated(p);
-}
+  trackView({ id: productId, name: p.name, image: images[0], price: Number(p.price) });
+  if (recentSection) renderRecentlyViewed(recentSection, productId);
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  loadRelated(p);
+  loadReviews();
 }
 
 async function loadRelated(p) {
@@ -184,6 +215,7 @@ async function loadRelated(p) {
       const rp = docSnap.data();
       const rid = docSnap.id;
       const img = (rp.images && rp.images[0]) || 'assets/logo.jpeg';
+      const rAvg = ratingAvg(rp);
       const card = document.createElement('a');
       card.href = `product.html?id=${rid}`;
       card.className = 'product-card';
@@ -192,6 +224,7 @@ async function loadRelated(p) {
         <div class="img-wrap"><img src="${img}" alt="${escapeHtml(rp.name)}" loading="lazy"></div>
         <div class="info">
           <div class="name">${escapeHtml(rp.name)}</div>
+          ${starsHtml(rAvg, Number(rp.ratingCount) || 0, 'sm')}
           <div class="price">₹${Number(rp.price).toLocaleString('en-IN')}</div>
         </div>`;
       relatedGrid.appendChild(card);
@@ -199,6 +232,105 @@ async function loadRelated(p) {
   } catch (err) {
     console.error('Related products failed to load', err);
     relatedSection.innerHTML = '';
+  }
+}
+
+let pendingRating = 0;
+
+function reviewItemHtml(r) {
+  const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  let stars = '';
+  for (let i = 1; i <= 5; i++) stars += `<i class="fas fa-star${i <= r.rating ? '' : ' dim'}"></i>`;
+  return `
+    <div class="review-item">
+      <div class="review-item-top">
+        <strong>${escapeHtml(r.name)}</strong>
+        <span class="review-stars">${stars}</span>
+      </div>
+      ${r.comment ? `<p class="review-comment">${escapeHtml(r.comment)}</p>` : ''}
+      <div class="review-date">${date}</div>
+    </div>
+  `;
+}
+
+async function loadReviews() {
+  if (!reviewsSection) return;
+  reviewsSection.innerHTML = `
+    <h2 class="section-title">Ratings &amp; Reviews</h2>
+    <div class="review-form-card">
+      <label>Your Rating</label>
+      <div class="review-star-input" id="reviewStarInput">
+        ${[1,2,3,4,5].map(i => `<i class="far fa-star" data-star="${i}"></i>`).join('')}
+      </div>
+      <div class="form-group mt-10"><input type="text" id="reviewName" placeholder="Your name" maxlength="60"></div>
+      <div class="form-group"><textarea id="reviewComment" rows="3" placeholder="Share your experience with this product (optional)" maxlength="600"></textarea></div>
+      <button class="btn small" id="submitReviewBtn">Submit Review</button>
+    </div>
+    <div id="reviewsList" class="mt-20"><div class="spinner"></div></div>
+  `;
+
+  const starInput = document.getElementById('reviewStarInput');
+  pendingRating = 0;
+  starInput.querySelectorAll('[data-star]').forEach(star => {
+    star.addEventListener('mouseenter', () => paintStars(+star.dataset.star));
+    star.addEventListener('click', () => { pendingRating = +star.dataset.star; paintStars(pendingRating); });
+  });
+  starInput.addEventListener('mouseleave', () => paintStars(pendingRating));
+
+  function paintStars(n) {
+    starInput.querySelectorAll('[data-star]').forEach(s => {
+      const active = +s.dataset.star <= n;
+      s.className = active ? 'fas fa-star' : 'far fa-star';
+    });
+  }
+
+  document.getElementById('submitReviewBtn').addEventListener('click', async () => {
+    const name = document.getElementById('reviewName').value.trim();
+    const comment = document.getElementById('reviewComment').value.trim();
+    if (!pendingRating) { toast('Please select a star rating.', 'error'); return; }
+    if (!name) { toast('Please enter your name.', 'error'); return; }
+    const btn = document.getElementById('submitReviewBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    const ratingGiven = pendingRating;
+    try {
+      await submitReview(productId, { name, rating: ratingGiven, comment });
+      toast('Thanks for your review!', 'success');
+      document.getElementById('reviewName').value = '';
+      document.getElementById('reviewComment').value = '';
+      pendingRating = 0;
+      paintStars(0);
+      // Refresh both the review list and the on-page average.
+      productData.ratingCount = (Number(productData.ratingCount) || 0) + 1;
+      productData.ratingSum = (Number(productData.ratingSum) || 0) + ratingGiven;
+      const headerRating = document.querySelector('.pd-info .rating-row');
+      if (headerRating) headerRating.outerHTML = starsHtml(ratingAvg(productData), productData.ratingCount, 'md');
+      renderReviewsList();
+    } catch (err) {
+      console.error(err);
+      toast('Could not submit your review. Please try again.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Review';
+    }
+  });
+
+  renderReviewsList();
+}
+
+async function renderReviewsList() {
+  const listEl = document.getElementById('reviewsList');
+  if (!listEl) return;
+  try {
+    const reviews = await fetchReviews(productId);
+    if (!reviews.length) {
+      listEl.innerHTML = `<div class="empty-state">No reviews yet — be the first to share your experience!</div>`;
+      return;
+    }
+    listEl.innerHTML = reviews.map(reviewItemHtml).join('');
+  } catch (err) {
+    console.error('Reviews failed to load', err);
+    listEl.innerHTML = `<div class="empty-state">Couldn't load reviews right now.</div>`;
   }
 }
 

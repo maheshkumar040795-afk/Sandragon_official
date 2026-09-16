@@ -1,5 +1,31 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## ✨ New in this update
+
+On top of the original build, this version adds a full set of standard
+e-commerce features, all styled to match the existing black/gold theme and
+built the same way (vanilla JS + Firestore, no framework, no build step):
+
+| Feature | What it does | Files |
+|---|---|---|
+| **Wishlist** | Heart icon on every product card + product page. Saved per-device (localStorage). Dedicated `wishlist.html` page with "Add to Cart" straight from the list, and a live count badge in the nav. | `js/wishlist-store.js`, `wishlist.html`, `js/wishlist.js` |
+| **Ratings & Reviews** | Customers leave a star rating + optional comment on any product page. The average/count is denormalized onto the product doc (`ratingCount`/`ratingSum`) so star ratings show on cards and search results with no extra reads. | `js/reviews.js`, `js/product-detail.js`, `js/store.js` |
+| **Coupon codes** | Admin creates percentage or flat-amount discount codes (with optional minimum order + expiry) in a new **Coupons** admin tab. Customers apply a code at checkout; the discount is validated live and saved on the order. | `admin/coupons.html`, `admin/js/admin-coupons.js`, `js/cart.js` |
+| **Recently Viewed** | The last few products a shopper looked at follow them as a horizontal strip on the homepage and on other product pages (localStorage, no login needed). | `js/recently-viewed.js` |
+| **Sort & filter toolbar** | "Newest / Price low-high / Price high-low / Top rated" sort plus an "In stock only" filter on the shop grid. | `js/store.js` |
+| **Stock & new-arrival badges** | "Only N left" and "Sold Out" badges driven by the existing stock field, plus an automatic "New" tag on anything added in the last 14 days. | `js/store.js` |
+| **Toast notifications** | Add-to-cart, wishlist, coupon, and validation messages now show as a small on-brand toast instead of a browser `alert()`. | `js/toast.js` |
+
+**One-time setup step for this update:** re-deploy `firestore.rules` —
+```bash
+firebase deploy --only firestore:rules
+```
+It adds the `reviews` subcollection and `coupons` collection, plus a narrowly-scoped
+public rule that lets a review bump only the `ratingCount`/`ratingSum` fields on a
+product (everything else on `products` stays admin-only), and the same pattern for
+a coupon's `usageCount`.
+
+
 Black/gold theme built to match your logo. Vanilla HTML/CSS/JS + Firebase (Firestore + Auth)
 + Cloudinary (image hosting) + Razorpay (payments) — same stack family you already use, so it
 deploys the same way (GitHub Pages / Firebase Hosting).

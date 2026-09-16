@@ -1,30 +1,81 @@
 import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
 import { rankResults } from "./nav-features.js";
+import { toggleWishlist, isWishlisted } from "./wishlist-store.js";
+import { ratingAvg, starsHtml } from "./reviews.js";
+import { renderRecentlyViewed } from "./recently-viewed.js";
+import { toast } from "./toast.js";
 import "./cart-store.js";
 
 const grid = document.getElementById('productGrid');
 const pillsWrap = document.getElementById('categoryPills');
 const bannerWrap = document.getElementById('searchBanner');
+const toolbarWrap = document.getElementById('shopToolbar');
+const recentWrap = document.getElementById('recentlyViewedSection');
 
 let allProducts = [];
 let activeCategory = new URLSearchParams(window.location.search).get('category') || '';
 let activeSearch = new URLSearchParams(window.location.search).get('search') || '';
+let activeSort = 'newest';
+let inStockOnly = false;
+
+const NEW_WINDOW_DAYS = 14;
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 }
 
+function isNewProduct(p) {
+  const ms = p.createdAt?.toMillis ? p.createdAt.toMillis() : 0;
+  if (!ms) return false;
+  return (Date.now() - ms) < NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function stockBadge(p) {
+  const stock = p.stock;
+  if (stock === undefined || stock === null) return '';
+  if (Number(stock) <= 0) return `<span class="stock-badge out">Sold Out</span>`;
+  if (Number(stock) <= 5) return `<span class="stock-badge low">Only ${stock} left</span>`;
+  return '';
+}
+
 function cardHtml(p, id) {
   const img = (p.images && p.images[0]) || 'assets/logo.jpeg';
   const tag = p.category ? `<span class="cat-tag">${escapeHtml(categoryName(p.category) || p.category)}</span>` : '';
+  const newTag = isNewProduct(p) ? `<span class="new-tag">New</span>` : '';
+  const wished = isWishlisted(id);
+  const avg = ratingAvg(p);
+  const soldOut = p.stock !== undefined && p.stock !== null && Number(p.stock) <= 0;
   return `
     ${tag}
-    <div class="img-wrap"><img src="${img}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
+    ${newTag}
+    <button type="button" class="wishlist-heart ${wished ? 'active' : ''}" data-wish="${id}" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
+      <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
+    </button>
+    <div class="img-wrap">
+      <img src="${img}" alt="${escapeHtml(p.name)}" loading="lazy">
+      ${soldOut ? '<div class="sold-out-overlay">Sold Out</div>' : ''}
+    </div>
     <div class="info">
       <div class="name">${escapeHtml(p.name)}</div>
-      <div class="price">₹${Number(p.price).toLocaleString('en-IN')}</div>
+      ${starsHtml(avg, Number(p.ratingCount) || 0, 'sm')}
+      <div class="price-row">
+        <div class="price">₹${Number(p.price).toLocaleString('en-IN')}</div>
+        ${stockBadge(p)}
+      </div>
     </div>`;
+}
+
+function sortItems(items) {
+  const sorted = [...items];
+  switch (activeSort) {
+    case 'price-low': return sorted.sort((a, b) => Number(a.data.price) - Number(b.data.price));
+    case 'price-high': return sorted.sort((a, b) => Number(b.data.price) - Number(a.data.price));
+    case 'rating': return sorted.sort((a, b) => ratingAvg(b.data) - ratingAvg(a.data));
+    case 'newest':
+    default:
+      return sorted; // allProducts is already newest-first
+  }
 }
 
 function renderGrid() {
@@ -37,6 +88,10 @@ function renderGrid() {
   if (activeCategory) {
     items = items.filter(x => x.data.category === activeCategory);
   }
+  if (inStockOnly) {
+    items = items.filter(x => x.data.stock === undefined || x.data.stock === null || Number(x.data.stock) > 0);
+  }
+  items = sortItems(items);
 
   if (bannerWrap) {
     if (activeSearch) {
@@ -66,6 +121,20 @@ function renderGrid() {
     card.className = 'product-card';
     card.innerHTML = cardHtml(p, id);
     grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('[data-wish]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.wish;
+      const p = allProducts.find(x => x.id === id)?.data;
+      if (!p) return;
+      const added = toggleWishlist({ id, name: p.name, image: (p.images && p.images[0]) || 'assets/logo.jpeg', price: Number(p.price) });
+      btn.classList.toggle('active', added);
+      btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
+      toast(added ? `Added "${p.name}" to your wishlist` : `Removed "${p.name}" from your wishlist`, 'wishlist');
+    });
   });
 }
 
@@ -102,6 +171,30 @@ function renderPills() {
   });
 }
 
+function renderToolbar() {
+  if (!toolbarWrap) return;
+  toolbarWrap.innerHTML = `
+    <label class="stock-filter">
+      <input type="checkbox" id="inStockOnlyChk">
+      In stock only
+    </label>
+    <select id="sortSelect" aria-label="Sort products">
+      <option value="newest">Newest First</option>
+      <option value="price-low">Price: Low to High</option>
+      <option value="price-high">Price: High to Low</option>
+      <option value="rating">Top Rated</option>
+    </select>
+  `;
+  document.getElementById('sortSelect').addEventListener('change', (e) => {
+    activeSort = e.target.value;
+    renderGrid();
+  });
+  document.getElementById('inStockOnlyChk').addEventListener('change', (e) => {
+    inStockOnly = e.target.checked;
+    renderGrid();
+  });
+}
+
 async function loadProducts() {
   try {
     // No orderBy() in the Firestore query itself: pairing where() with
@@ -118,6 +211,7 @@ async function loadProducts() {
     if (snap.empty) {
       grid.innerHTML = `<div class="empty-state">No products yet. Check back soon!</div>`;
       if (pillsWrap) pillsWrap.style.display = 'none';
+      if (toolbarWrap) toolbarWrap.style.display = 'none';
       return;
     }
 
@@ -129,7 +223,9 @@ async function loadProducts() {
         return tb - ta;
       });
     renderPills();
+    renderToolbar();
     renderGrid();
+    if (recentWrap) renderRecentlyViewed(recentWrap);
   } catch (err) {
     console.error(err);
     grid.innerHTML = `<div class="empty-state">Couldn't load products. Please refresh.</div>`;

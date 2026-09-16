@@ -8,10 +8,39 @@ service cloud.firestore {
         request.auth.token.email in ['sandragonofficial@gmail.com'];
     }
 
-    // Products: anyone can read, only admin can write
+    // Products: anyone can read, only admin can write — except the
+    // denormalized rating aggregate, which any customer's review submission
+    // is allowed to bump via increment() (see reviews below). That update
+    // is restricted to touching only those two numeric fields.
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
+      allow update: if !isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingCount', 'ratingSum']);
+
+      // Reviews: anyone can post a review (same lightweight trust model as
+      // orders/customers — no login wall for a small storefront) and read
+      // them; only admin can edit or remove one (e.g. to take down spam).
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasAll(['name', 'rating', 'comment', 'createdAt']) &&
+          request.resource.data.rating is number &&
+          request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+          request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() < 80 &&
+          request.resource.data.comment.size() < 1000;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Coupons: public read (so the cart can validate a code) and a narrow
+    // public update limited to bumping usageCount at checkout; everything
+    // else (create/delete/edit terms) is admin-only.
+    match /coupons/{code} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount']);
     }
 
     // Orders: anyone can create an order (checkout), only admin can read/update the list.

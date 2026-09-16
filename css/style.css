@@ -520,7 +520,7 @@ header.navbar{
 .pd-wrap{display:grid;grid-template-columns:1fr 1fr;gap:54px;padding:54px 0}
 @media(max-width:768px){.pd-wrap{grid-template-columns:1fr;gap:30px}}
 .pd-gallery .main-img{
-  aspect-ratio:1/1;background:#111;border-radius:var(--radius-lg);overflow:hidden;margin-bottom:14px;
+  position:relative;aspect-ratio:1/1;background:#111;border-radius:var(--radius-lg);overflow:hidden;margin-bottom:14px;
   border:1px solid var(--border);box-shadow:var(--shadow-premium);
 }
 .pd-gallery .main-img img{width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}
@@ -688,6 +688,123 @@ tr:last-child td{border-bottom:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .text-center{text-align:center}
 .mt-10{margin-top:10px}.mt-20{margin-top:20px}.mb-10{margin-bottom:10px}
+
+/* ============ New: Wishlist heart button (cards + PDP) ============ */
+.product-card{position:relative}
+.wishlist-heart{
+  position:absolute;top:12px;right:12px;z-index:3;width:36px;height:36px;border-radius:50%;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(4px);border:1px solid var(--border);
+  color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform .3s var(--ease-spring),background .25s,border-color .25s,color .25s;font-size:.95rem;
+}
+.wishlist-heart:hover{transform:scale(1.12);border-color:var(--border-gold)}
+.wishlist-heart.active{color:var(--accent);border-color:rgba(217,79,43,.5)}
+.wishlist-heart.active i{animation:heartPop .4s var(--ease-spring)}
+@keyframes heartPop{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+.pd-heart{position:absolute;top:16px;right:16px;width:44px;height:44px;font-size:1.1rem}
+.wishlist-nav-icon i{transition:color .25s}
+@media(prefers-reduced-motion:reduce){.wishlist-heart.active i{animation:none}}
+
+/* New-arrival tag (shares the cat-tag corner but stacks below it) */
+.new-tag{
+  position:absolute;top:12px;left:12px;z-index:2;background:linear-gradient(135deg,var(--accent),#f0774f);
+  color:#fff;font-size:.62rem;font-weight:700;padding:4px 10px;border-radius:20px;text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.cat-tag + .new-tag{top:44px}
+
+/* Stock urgency badges + sold-out overlay */
+.price-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:4px}
+.stock-badge{font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.stock-badge.low{background:rgba(217,79,43,.16);color:var(--accent);border:1px solid rgba(217,79,43,.35)}
+.stock-badge.out{background:rgba(224,86,74,.16);color:var(--danger);border:1px solid rgba(224,86,74,.35)}
+.sold-out-overlay{
+  position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:.85rem;backdrop-filter:blur(1px);
+}
+
+/* Star ratings — product cards + product detail */
+.rating-row{display:flex;align-items:center;gap:7px;margin:2px 0 6px;font-size:.78rem;color:var(--muted)}
+.rating-row.rating-md{font-size:.92rem;margin:10px 0 16px}
+.rating-stars{color:var(--gold);letter-spacing:1px;font-size:.8rem}
+.rating-md .rating-stars{font-size:1rem}
+.rating-row.no-reviews{color:var(--muted);font-style:italic;opacity:.75}
+
+/* Shop toolbar: sort + in-stock filter */
+.shop-toolbar{
+  display:flex;align-items:center;justify-content:flex-end;gap:18px;flex-wrap:wrap;
+  margin:-18px 0 26px;padding-bottom:18px;border-bottom:1px solid var(--border);
+}
+.shop-toolbar select{width:auto;min-width:180px;padding:9px 14px;font-size:.85rem}
+.stock-filter{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer;user-select:none}
+.stock-filter input{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+
+/* Recently viewed strip */
+.recent-strip{display:flex;gap:18px;overflow-x:auto;padding-bottom:16px;scroll-snap-type:x proximity}
+.recent-strip::-webkit-scrollbar{height:6px}
+.recent-strip::-webkit-scrollbar-thumb{background:var(--border-gold);border-radius:6px}
+.recent-card{
+  flex:0 0 150px;scroll-snap-align:start;background:var(--card-glass);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;transition:border-color .3s,transform .3s var(--ease);
+}
+.recent-card:hover{border-color:var(--border-gold);transform:translateY(-3px)}
+.recent-img{aspect-ratio:1/1;background:#1a1a1a}
+.recent-img img{width:100%;height:100%;object-fit:cover}
+.recent-name{padding:10px 10px 2px;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-price{padding:0 10px 10px;color:var(--gold);font-size:.82rem;font-weight:700}
+
+/* Toast notification stack */
+.toast-stack{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:700;
+  display:flex;flex-direction:column-reverse;gap:10px;width:100%;max-width:400px;padding:0 16px;
+  pointer-events:none;
+}
+.toast-item{
+  pointer-events:auto;display:flex;align-items:center;gap:12px;background:#0d0d0dee;backdrop-filter:blur(16px);
+  border:1px solid var(--border-gold);border-radius:var(--radius);box-shadow:var(--shadow-premium);
+  padding:14px 16px;opacity:0;transform:translateY(16px) scale(.96);transition:opacity .35s var(--ease),transform .35s var(--ease-spring);
+  font-size:.88rem;
+}
+.toast-item.show{opacity:1;transform:translateY(0) scale(1)}
+.toast-item i{font-size:1.05rem;flex-shrink:0}
+.toast-item span{flex:1}
+.toast-item.toast-success i{color:var(--success)}
+.toast-item.toast-error i{color:var(--danger)}
+.toast-item.toast-info i{color:#3498db}
+.toast-item.toast-wishlist i{color:var(--accent)}
+.toast-close{background:none;border:none;color:var(--muted);font-size:1.1rem;line-height:1;cursor:pointer;flex-shrink:0}
+.toast-close:hover{color:#fff}
+@media(prefers-reduced-motion:reduce){.toast-item{transition:opacity .2s}}
+
+/* Coupon box (cart summary) */
+.coupon-box{display:flex;gap:8px;margin-bottom:6px}
+.coupon-box input{text-transform:uppercase;letter-spacing:.5px}
+.coupon-msg{font-size:.8rem;margin-bottom:14px;padding:8px 12px;border-radius:8px}
+.coupon-msg.ok{background:rgba(47,158,90,.12);color:#6fcf97;border:1px solid rgba(47,158,90,.3)}
+.coupon-msg.err{background:rgba(224,86,74,.12);color:#ff9a91;border:1px solid rgba(224,86,74,.3)}
+
+/* Reviews section (product detail page) */
+.review-form-card{
+  background:var(--card-glass);backdrop-filter:blur(10px);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:22px;margin-bottom:24px;
+}
+.review-form-card label{display:block;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px}
+.review-star-input{display:flex;gap:6px;font-size:1.4rem;color:var(--gold);cursor:pointer}
+.review-star-input i{transition:transform .2s}
+.review-star-input i:hover{transform:scale(1.15)}
+.review-item{border-bottom:1px solid var(--border);padding:16px 0}
+.review-item:last-child{border-bottom:none}
+.review-item-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.review-stars{color:var(--gold);font-size:.82rem;letter-spacing:1px}
+.review-stars .dim{color:rgba(255,255,255,.15)}
+.review-comment{color:var(--muted);margin-top:8px;font-size:.92rem;line-height:1.6}
+.review-date{color:var(--muted);font-size:.74rem;margin-top:8px;opacity:.7}
+
+/* Wishlist page cards (img wrapped in an <a>, not the whole card) */
+.wishlist-card{cursor:default}
+.wishlist-card .img-wrap{display:block}
+.wishlist-card .name{display:block;font-weight:600;margin-bottom:6px}
+.wishlist-card .name:hover{color:var(--gold)}
 
 /* Generic scroll-reveal utility (applied by premium.js) */
 .reveal-up{opacity:0;transform:translateY(24px);transition:opacity .7s var(--ease),transform .7s var(--ease)}

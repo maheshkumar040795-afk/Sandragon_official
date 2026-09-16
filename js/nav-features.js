@@ -5,6 +5,7 @@ import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
 import { getCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
+import { updateWishlistBadge } from "./wishlist-store.js";
 
 /* ---------------- Category mega-menu ---------------- */
 function buildMegaMenu() {
@@ -161,9 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
   buildMegaMenu();
   setupSearch();
   buildAccountNav();
+  updateWishlistBadge();
   lockScrollWhileMenuOpen();
 });
 window.addEventListener('sandragon:customer-updated', buildAccountNav);
+window.addEventListener('sandragon:wishlist-updated', updateWishlistBadge);
 
 /* ---------------- Mobile menu: lock background scroll while open ----------------
    The inline per-page <script> toggles #navLinks' "active" class on hamburger
