@@ -1,8 +1,9 @@
-import { db, collection, addDoc, doc, getDoc, updateDoc, increment, serverTimestamp } from "./firebase-init.js";
+import { db, collection, addDoc, doc, getDoc, updateDoc, increment, serverTimestamp, runTransaction } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
 import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
 import { getCustomer, saveCustomer } from "./customer-store.js";
 import { toast } from "./toast.js";
+import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
 
 // DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
 // payment gateway and creates the order directly — so the full customer → admin
@@ -23,6 +24,7 @@ const cartItemsEl = document.getElementById('cartItems');
 const checkoutSection = document.getElementById('checkoutSection');
 
 let appliedCoupon = null; // { code, type, value, discountAmount }
+let shippingConfig = DEFAULT_CONFIG; // replaced once the admin's real config loads
 
 function renderCart() {
   const cart = getCart();
@@ -95,12 +97,20 @@ function showCouponMsg(msg, ok) {
   el.className = `coupon-msg ${ok ? 'ok' : 'err'}`;
 }
 
+function currentShippingCharge(subtotal) {
+  return computeShippingCharge(subtotal, shippingConfig);
+}
+
 function updateSummary() {
   const subtotal = cartTotal();
   const discount = computeDiscount(subtotal);
-  const total = Math.max(0, subtotal - discount);
+  const shippingCharge = currentShippingCharge(subtotal);
+  const total = Math.max(0, subtotal - discount + shippingCharge);
   document.getElementById('subtotalVal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
   document.getElementById('totalVal').textContent = `₹${total.toLocaleString('en-IN')}`;
+  document.getElementById('shippingVal').textContent = shippingCharge > 0
+    ? `₹${shippingCharge.toLocaleString('en-IN')}`
+    : 'Free';
   const discountRow = document.getElementById('discountRow');
   if (discount > 0) {
     discountRow.style.display = 'flex';
@@ -189,7 +199,8 @@ async function handlePayment() {
   if (!cart.length) return;
   const subtotal = cartTotal();
   const discountAmount = computeDiscount(subtotal);
-  const amount = Math.max(0, subtotal - discountAmount);
+  const shippingCharge = currentShippingCharge(subtotal);
+  const amount = Math.max(0, subtotal - discountAmount + shippingCharge);
   const couponMeta = appliedCoupon ? { code: appliedCoupon.code, discountAmount } : null;
 
   // Keep the lightweight account record in sync with whatever they just
@@ -207,6 +218,7 @@ async function handlePayment() {
         customer: { name, phone, email, address, pincode },
         items: cart,
         subtotal,
+        shippingCharge,
         coupon: couponMeta,
         totalAmount: amount,
         paymentId: 'DEMO_' + Date.now(),
@@ -219,6 +231,7 @@ async function handlePayment() {
         createdAt: serverTimestamp()
       });
       await bumpCouponUsage();
+      await decrementStock(cart);
       clearCart();
       window.location.href = `order-success.html?orderId=${orderDoc.id}`;
     } catch (err) {
@@ -253,7 +266,7 @@ async function handlePayment() {
       prefill: { name, email, contact: phone },
       theme: { color: '#c9a227' },
       handler: async function (response) {
-        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, subtotal, amount, couponMeta);
+        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, subtotal, shippingCharge, amount, couponMeta);
       },
       modal: {
         ondismiss: function () {
@@ -271,6 +284,35 @@ async function handlePayment() {
   }
 }
 
+// Decrements each purchased product's stock by the quantity ordered.
+// Products with no stock tracking (stock is undefined/null, meaning
+// "unlimited") are skipped. Runs one transaction per product so a stale
+// read never overwrites someone else's concurrent purchase, and clamps at
+// 0 rather than going negative if two orders race for the last units.
+async function decrementStock(cart) {
+  const qtyByProduct = {};
+  cart.forEach(item => {
+    qtyByProduct[item.productId] = (qtyByProduct[item.productId] || 0) + item.qty;
+  });
+
+  await Promise.all(Object.entries(qtyByProduct).map(async ([productId, qty]) => {
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, 'products', productId);
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const stock = snap.data().stock;
+        if (stock === undefined || stock === null) return; // unlimited stock — nothing to track
+        const next = Math.max(0, Number(stock) - qty);
+        if (next === Number(stock)) return; // rule requires a strict decrease
+        tx.update(ref, { stock: next });
+      });
+    } catch (err) {
+      console.warn(`Could not update stock for product ${productId}`, err);
+    }
+  }));
+}
+
 async function bumpCouponUsage() {
   if (!appliedCoupon) return;
   try {
@@ -280,7 +322,7 @@ async function bumpCouponUsage() {
   }
 }
 
-async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, amount, couponMeta) {
+async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, shippingCharge, amount, couponMeta) {
   try {
     // 3. Verify payment signature server-side (Cloud Function)
     const verifyRes = await fetch(`${functionsBaseUrl}/verifyRazorpayPayment`, {
@@ -296,6 +338,7 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, am
       customer,
       items: cart,
       subtotal,
+      shippingCharge,
       coupon: couponMeta,
       totalAmount: amount,
       paymentId: razorpayResponse.razorpay_payment_id,
@@ -309,6 +352,7 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, am
     });
 
     await bumpCouponUsage();
+    await decrementStock(cart);
     clearCart();
     window.location.href = `order-success.html?orderId=${orderDoc.id}`;
   } catch (err) {
@@ -318,3 +362,11 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, am
 }
 
 renderCart();
+
+// Delivery charge is admin-configurable (admin/settings.html); load it once
+// and refresh the summary so the correct charge (or "Free") shows without
+// waiting on the customer to trigger a re-render themselves.
+getShippingConfig().then(cfg => {
+  shippingConfig = cfg;
+  updateSummary();
+});

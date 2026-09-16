@@ -80,6 +80,10 @@ function openOrder(id) {
   currentOrderId = id;
 
   document.getElementById('modalOrderId').textContent = '#' + o.id.slice(-8).toUpperCase();
+  const hasBreakdown = o.subtotal !== undefined;
+  const hasDiscount = o.coupon && o.coupon.discountAmount > 0;
+  const shipping = Number(o.shippingCharge) || 0;
+
   document.getElementById('modalOrderBody').innerHTML = `
     <table style="margin-bottom:16px">
       <thead><tr><th>Item</th><th>Color</th><th>Size</th><th>Qty</th><th>Price</th><th>Vendor</th></tr></thead>
@@ -87,6 +91,13 @@ function openOrder(id) {
         ${o.items.map(i => `<tr><td>${i.name}</td><td>${i.color || '—'}</td><td>${i.size || '—'}</td><td>${i.qty}</td><td>₹${i.price}</td><td>${i.vendorName || '—'}${i.vendorPhone ? '<br><span class="stock-note">' + i.vendorPhone + '</span>' : ''}</td></tr>`).join('')}
       </tbody>
     </table>
+    ${hasBreakdown ? `
+    <div class="order-totals mb-10">
+      <div><span>Subtotal</span><span>₹${Number(o.subtotal).toLocaleString('en-IN')}</span></div>
+      ${hasDiscount ? `<div><span>Coupon (${o.coupon.code})</span><span class="gold">-₹${Number(o.coupon.discountAmount).toLocaleString('en-IN')}</span></div>` : ''}
+      <div><span>Delivery</span><span>${shipping > 0 ? '₹' + shipping.toLocaleString('en-IN') : 'Free'}</span></div>
+      <div class="order-totals-final"><span>Total Paid</span><span>₹${Number(o.totalAmount).toLocaleString('en-IN')}</span></div>
+    </div>` : ''}
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
     <div class="stock-note">Payment ID: ${o.paymentId}</div>

@@ -15,6 +15,10 @@ built the same way (vanilla JS + Firestore, no framework, no build step):
 | **Sort & filter toolbar** | "Newest / Price low-high / Price high-low / Top rated" sort plus an "In stock only" filter on the shop grid. | `js/store.js` |
 | **Stock & new-arrival badges** | "Only N left" and "Sold Out" badges driven by the existing stock field, plus an automatic "New" tag on anything added in the last 14 days. | `js/store.js` |
 | **Toast notifications** | Add-to-cart, wishlist, coupon, and validation messages now show as a small on-brand toast instead of a browser `alert()`. | `js/toast.js` |
+| **Post-delivery reviews** | Once an order's status is "Delivered," a "Write a Review" button appears in Order History, opening a per-item star + comment form. | `js/order-history.js` |
+| **Itemized order history** | Order History and the tracking modal now show each item's color/size/qty/price, plus a Subtotal → Delivery → Total breakdown, instead of just a total. | `js/order-history.js` |
+| **Auto stock decrement** | Stock is decremented (via a Firestore transaction) the moment an order is placed, so the storefront and admin product list both reflect real availability immediately. | `js/cart.js` |
+| **Admin-configurable delivery charge** | New **Delivery** tab in admin: set a free-delivery threshold (e.g. ₹499) and a flat charge below it (e.g. ₹50), or make delivery always free. Cart, checkout, and order records all pick this up automatically. | `admin/settings.html`, `admin/js/admin-settings.js`, `js/shipping-store.js`, `js/cart.js` |
 
 **One-time setup step for this update:** re-deploy `firestore.rules` —
 ```bash

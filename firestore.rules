@@ -8,15 +8,24 @@ service cloud.firestore {
         request.auth.token.email in ['sandragonofficial@gmail.com'];
     }
 
-    // Products: anyone can read, only admin can write — except the
-    // denormalized rating aggregate, which any customer's review submission
-    // is allowed to bump via increment() (see reviews below). That update
-    // is restricted to touching only those two numeric fields.
+    // Products: anyone can read, only admin can write — except two narrow
+    // customer-triggered updates:
+    //  1. the denormalized rating aggregate, bumped via increment() when a
+    //     review is submitted (restricted to those two numeric fields).
+    //  2. the stock count, decremented at checkout so the storefront and
+    //     admin panel both reflect what's left. Restricted to the 'stock'
+    //     field alone, and only allowed to move it down (never up, never
+    //     negative) — a customer's browser can never use this to restock.
     match /products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
       allow update: if !isAdmin() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingCount', 'ratingSum']);
+      allow update: if !isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']) &&
+        request.resource.data.stock is number &&
+        request.resource.data.stock >= 0 &&
+        request.resource.data.stock < resource.data.stock;
 
       // Reviews: anyone can post a review (same lightweight trust model as
       // orders/customers — no login wall for a small storefront) and read

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings | SANDRAGON Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../css/style.css?v=20260916">
+</head>
+<body>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="brand"><img src="../assets/logo.jpeg" style="height:30px"> SAN<span class="d">D</span>RAGON</div>
+    <a href="dashboard.html"><i class="fas fa-box"></i> Products</a>
+    <a href="orders.html"><i class="fas fa-receipt"></i> Orders</a>
+    <a href="banners.html"><i class="fas fa-images"></i> Banners</a>
+    <a href="coupons.html"><i class="fas fa-tags"></i> Coupons</a>
+    <a href="settings.html" class="active"><i class="fas fa-truck-fast"></i> Delivery</a>
+    <a href="../index.html" target="_blank"><i class="fas fa-store"></i> View Store</a>
+    <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-header">
+      <h2>Delivery Charges</h2>
+    </div>
+
+    <div class="settings-card">
+      <p class="stock-note mb-10">Set a flat delivery charge for smaller orders, and a minimum order
+        value above which delivery is free. Applies automatically at checkout — no code changes needed.</p>
+
+      <div class="form-group">
+        <label>Free Delivery Above (₹)</label>
+        <input type="number" id="fThreshold" min="0" placeholder="e.g. 499">
+      </div>
+      <div class="form-group">
+        <label>Delivery Charge Below That (₹)</label>
+        <input type="number" id="fCharge" min="0" placeholder="e.g. 50">
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="fFreeAll" style="width:auto"> Always free delivery (ignore charge above)
+        </label>
+      </div>
+
+      <div class="settings-preview" id="settingsPreview"></div>
+
+      <button class="btn mt-20" id="saveSettingsBtn">Save Delivery Settings</button>
+      <span id="saveStatus" class="stock-note" style="margin-left:14px"></span>
+    </div>
+  </main>
+</div>
+
+<script type="module" src="js/admin-settings.js"></script>
+<script src="../js/premium.js?v=20260916" defer></script>
+</body>
+</html>
