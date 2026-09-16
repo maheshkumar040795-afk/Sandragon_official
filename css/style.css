@@ -800,6 +800,33 @@ tr:last-child td{border-bottom:none}
 .review-comment{color:var(--muted);margin-top:8px;font-size:.92rem;line-height:1.6}
 .review-date{color:var(--muted);font-size:.74rem;margin-top:8px;opacity:.7}
 
+/* Promotional ad strip (storefront) — separate from the hero carousel */
+.ads-strip{margin:0 0 40px}
+.ads-strip-inner{
+  position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border-gold);
+  box-shadow:var(--shadow-soft);aspect-ratio:1500/300;background:#111;
+}
+.ads-strip-track{position:relative;width:100%;height:100%}
+.ads-strip-slide{
+  position:absolute;inset:0;display:block;opacity:0;visibility:hidden;transition:opacity .5s var(--ease);
+}
+.ads-strip-slide.active{opacity:1;visibility:visible}
+.ads-strip-slide img{width:100%;height:100%;object-fit:cover;display:block}
+.ads-strip-label{
+  position:absolute;top:8px;left:8px;z-index:3;background:rgba(0,0,0,.6);color:var(--gold-light);
+  font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;padding:3px 9px;border-radius:20px;
+  border:1px solid var(--border-gold);
+}
+.ads-strip-close{
+  position:absolute;top:8px;right:8px;z-index:3;width:26px;height:26px;border-radius:50%;
+  background:rgba(0,0,0,.6);border:1px solid var(--border);color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:.25s;
+}
+.ads-strip-close:hover{background:var(--danger);border-color:transparent}
+.ads-strip-dots{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:3}
+.ads-strip-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);border:none;cursor:pointer;transition:.25s}
+.ads-strip-dot.active{background:var(--gold);width:18px;border-radius:5px}
+
 /* Admin: delivery/shipping settings */
 .settings-card{
   max-width:520px;background:var(--card-glass);backdrop-filter:blur(10px);border:1px solid var(--border-gold);

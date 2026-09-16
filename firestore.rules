@@ -69,9 +69,18 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Settings: site-wide config docs (e.g. the homepage banner carousel).
-    // Anyone can read (it's public storefront content), only admin can write.
+    // Settings: site-wide config docs (e.g. the homepage banner carousel,
+    // delivery charge). Anyone can read (public storefront content), only
+    // admin can write.
     match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Ads: promotional ad banners posted from Admin → Banners → Promotional
+    // Ads. Public read (storefront needs to display active ones), admin-only
+    // write (post/edit/delete).
+    match /ads/{adId} {
       allow read: if true;
       allow write: if isAdmin();
     }

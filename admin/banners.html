@@ -30,10 +30,61 @@
     </div>
     <p class="stock-note mb-10">Recommended image size: <strong>1756 × 450px</strong>. Up to 6 slides, auto-advancing every 3 seconds on the storefront. Leave a slide blank to skip it.</p>
     <div class="banner-slots" id="bannerSlots"></div>
+
+    <div class="admin-header mt-20" style="margin-top:50px">
+      <h2>Promotional Ads</h2>
+      <button class="btn" id="addAdBtn"><i class="fas fa-plus"></i> Post New Ad</button>
+    </div>
+    <p class="stock-note mb-10">A slim rotating ad strip shown on the storefront (homepage + product pages), separate from the hero banner above. Recommended image size: <strong>1500 × 300px</strong>. Customers can dismiss it for their visit; it reappears next time.</p>
+    <table>
+      <thead>
+        <tr><th>Preview</th><th>Title</th><th>Links To</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="adsTableBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
   </main>
 </div>
 
+<!-- Add/Edit Ad Modal -->
+<div class="modal-overlay" id="adModal">
+  <div class="modal">
+    <h3 id="adModalTitle">Post New Ad</h3>
+    <input type="hidden" id="editingAdId">
+
+    <div class="form-group">
+      <label>Ad Image *</label>
+      <div class="image-upload-grid" id="adImagePreview"></div>
+      <button type="button" class="btn outline small" id="uploadAdImageBtn"><i class="fas fa-upload"></i> Upload Image (Cloudinary)</button>
+      <p class="stock-note" style="margin-top:6px">Recommended: 1500 × 300px, under 500KB for fast loading.</p>
+    </div>
+
+    <div class="form-group">
+      <label>Title / Alt Text (optional)</label>
+      <input type="text" id="adTitle" placeholder="e.g. Diwali Sale — Flat 20% Off">
+    </div>
+
+    <div class="form-group">
+      <label>Link When Clicked (optional)</label>
+      <input type="text" id="adLink" placeholder="e.g. index.html?category=bats or https://wa.me/91...">
+    </div>
+
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="adActive" style="width:auto" checked> Active (shown on storefront)
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn" id="saveAdBtn" style="flex:1">Save Ad</button>
+      <button class="btn outline" id="cancelAdModalBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="js/admin-banners.js"></script>
+<script type="module" src="js/admin-ads.js"></script>
 <script src="../js/premium.js?v=20260916" defer></script>
 </body>
 </html>
