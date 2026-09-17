@@ -6,6 +6,7 @@ import { toggleWishlist, isWishlisted } from "./wishlist-store.js";
 import { ratingAvg, starsHtml, fetchReviews, submitReview } from "./reviews.js";
 import { trackView, renderRecentlyViewed } from "./recently-viewed.js";
 import { toast } from "./toast.js";
+import { openLightbox } from "./image-lightbox.js";
 
 const container = document.getElementById('pdContainer');
 const relatedSection = document.getElementById('relatedSection');
@@ -56,10 +57,11 @@ function render() {
     <div class="pd-wrap">
       <div class="pd-gallery">
         <div class="main-img">
-          <img id="mainImg" src="${images[0]}" alt="${escapeHtml(p.name)}">
+          <img id="mainImg" src="${images[0]}" alt="${escapeHtml(p.name)}" style="cursor:zoom-in">
           <button type="button" class="wishlist-heart pd-heart ${wished ? 'active' : ''}" id="pdWishBtn" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
             <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
           </button>
+          <button type="button" class="zoom-hint-btn" id="pdZoomBtn" aria-label="View full size"><i class="fas fa-expand"></i></button>
         </div>
         <div class="thumb-row" id="thumbRow">
           ${images.map((img, i) => `<img src="${img}" data-i="${i}" class="${i === 0 ? 'active' : ''}">`).join('')}
@@ -110,13 +112,21 @@ function render() {
   `;
 
   // Gallery thumbnail switching
+  let currentImgIndex = 0;
   document.querySelectorAll('#thumbRow img').forEach(t => {
     t.addEventListener('click', () => {
       document.querySelectorAll('#thumbRow img').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       document.getElementById('mainImg').src = t.src;
+      currentImgIndex = +t.dataset.i;
     });
   });
+
+  // Click the main image (or the zoom hint) to open the full-screen,
+  // zoomable lightbox — matches the Flipkart-style viewer requested.
+  const openGalleryLightbox = () => openLightbox(images, currentImgIndex);
+  document.getElementById('mainImg').addEventListener('click', openGalleryLightbox);
+  document.getElementById('pdZoomBtn').addEventListener('click', openGalleryLightbox);
 
   // Wishlist
   document.getElementById('pdWishBtn').addEventListener('click', () => {
