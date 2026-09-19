@@ -26,6 +26,19 @@ const checkoutSection = document.getElementById('checkoutSection');
 let appliedCoupon = null; // { code, type, value, discountAmount }
 let shippingConfig = DEFAULT_CONFIG; // replaced once the admin's real config loads
 
+// Shows every selected option (Color, Size, Flavour, Contains, or any
+// custom type the admin added). Falls back to the older color/size-only
+// fields for cart items added before the generic options system existed.
+function optionsMetaHtml(item) {
+  if (item.options && Object.keys(item.options).length) {
+    return Object.entries(item.options).map(([k, v]) => `${k}: ${v}`).join(' &nbsp; ');
+  }
+  const parts = [];
+  if (item.color) parts.push('Color: ' + item.color);
+  if (item.size) parts.push('Size: ' + item.size);
+  return parts.join(' &nbsp; ');
+}
+
 function renderCart() {
   const cart = getCart();
   if (!cart.length) {
@@ -43,7 +56,7 @@ function renderCart() {
       <img src="${item.image}" alt="${item.name}">
       <div>
         <div>${item.name}</div>
-        <div class="meta">${item.color ? 'Color: ' + item.color + ' &nbsp;' : ''}${item.size ? 'Size: ' + item.size : ''}</div>
+        <div class="meta">${optionsMetaHtml(item)}</div>
         <div class="remove-link" data-i="${i}">Remove</div>
       </div>
       <div class="qty-row" style="margin:0">

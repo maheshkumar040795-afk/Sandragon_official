@@ -670,6 +670,10 @@ tr:last-child td{border-bottom:none}
 .tag-chip button{background:none;border:none;color:#000;cursor:pointer;font-weight:700}
 .tag-chip-input{border:none;background:transparent;flex:1;min-width:100px;padding:4px}
 .whatsapp-preview{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:16px;white-space:pre-wrap;font-size:.88rem;color:var(--muted);margin-bottom:14px}
+.option-group-admin{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,.02)}
+.option-group-admin-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.option-group-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;transition:color .2s}
+.option-group-remove:hover{color:var(--danger)}
 .login-box{
   max-width:400px;margin:100px auto;padding:40px;border-radius:var(--radius-lg);
   background:var(--card-glass);backdrop-filter:blur(14px);border:1px solid var(--border-gold);
@@ -994,14 +998,14 @@ body.light-theme footer{background:var(--bg)}
 
 /* ---------- "Become a Dealer" floating CTA ---------- */
 .dealer-cta-tab{
-  position:fixed;top:50%;right:0;transform:translateY(-50%) rotate(-90deg);transform-origin:bottom right;
+  position:fixed;bottom:230px;right:0;transform:rotate(-90deg);transform-origin:bottom right;
   z-index:300;display:flex;align-items:center;gap:8px;
   background:linear-gradient(135deg,var(--accent),#f0774f);color:#fff;font-weight:700;
   font-size:.82rem;letter-spacing:.5px;text-transform:uppercase;
   padding:12px 20px;border:none;border-radius:10px 10px 0 0;cursor:pointer;
   box-shadow:0 -4px 20px -4px rgba(217,79,43,.55);
   animation:dealerPulse 2.6s ease-in-out infinite;
-  transition:padding .25s,transform .25s;
+  transition:padding .25s;
 }
 .dealer-cta-tab:hover{padding:12px 26px}
 @keyframes dealerPulse{
@@ -1010,7 +1014,7 @@ body.light-theme footer{background:var(--bg)}
 }
 @media(prefers-reduced-motion:reduce){.dealer-cta-tab{animation:none}}
 @media(max-width:600px){
-  .dealer-cta-tab{font-size:.7rem;padding:10px 14px}
+  .dealer-cta-tab{font-size:.7rem;padding:10px 14px;bottom:190px}
   .dealer-cta-tab:hover{padding:10px 14px}
 }
 .dealer-modal{max-width:440px;position:relative}

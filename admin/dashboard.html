@@ -6,7 +6,7 @@
 <title>Products | SANDRAGON Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20260919">
+<link rel="stylesheet" href="../css/style.css?v=20260919b">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -15,6 +15,7 @@
   <aside class="admin-sidebar">
     <div class="brand"><img src="../assets/logo.jpeg" style="height:30px"> SANDRAGON</div>
     <a href="dashboard.html" class="active"><i class="fas fa-box"></i> Products</a>
+    <a href="categories.html"><i class="fas fa-layer-group"></i> Categories</a>
     <a href="orders.html"><i class="fas fa-receipt"></i> Orders</a>
     <a href="banners.html"><i class="fas fa-images"></i> Banners</a>
     <a href="coupons.html"><i class="fas fa-tags"></i> Coupons</a>
@@ -82,17 +83,21 @@
     </div>
 
     <div class="form-group">
-      <label>Colors (type a name, press Enter)</label>
-      <div class="multi-tag-input" id="colorTagInput">
-        <input type="text" class="tag-chip-input" id="colorInputField" placeholder="e.g. Black">
+      <label>Product Options (Color, Size, Flavour, Contains, etc.)</label>
+      <div id="optionGroups"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <select id="newOptionType" style="flex:1">
+          <option value="">Select option type…</option>
+          <option value="Color">Color</option>
+          <option value="Size">Size</option>
+          <option value="Flavour">Flavour</option>
+          <option value="Contains">Contains</option>
+          <option value="Material">Material</option>
+          <option value="__custom">+ Custom type…</option>
+        </select>
+        <button type="button" class="btn small outline" id="addOptionTypeBtn"><i class="fas fa-plus"></i> Add</button>
       </div>
-    </div>
-
-    <div class="form-group">
-      <label>Sizes (type a size, press Enter)</label>
-      <div class="multi-tag-input" id="sizeTagInput">
-        <input type="text" class="tag-chip-input" id="sizeInputField" placeholder="e.g. M">
-      </div>
+      <p class="stock-note" style="margin-top:6px">Add one or more option types (e.g. Color, Size), then type values for each and press Enter. Customers pick one value per option before adding to cart.</p>
     </div>
 
     <div class="form-group">
@@ -138,6 +143,6 @@
 
 <script type="module" src="js/admin-products.js"></script>
 <script type="module" src="js/admin-product-reviews.js"></script>
-<script src="../js/premium.js?v=20260919" defer></script>
+<script src="../js/premium.js?v=20260919b" defer></script>
 </body>
 </html>

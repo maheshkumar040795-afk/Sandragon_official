@@ -15,12 +15,22 @@ const recentSection = document.getElementById('recentlyViewedSection');
 const params = new URLSearchParams(window.location.search);
 const productId = params.get('id');
 
-let selectedColor = null;
-let selectedSize = null;
+let selectedOptions = {}; // { 'Color': 'Black', 'Size': 'M', 'Flavour': 'Mango', ... }
 let productData = null;
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+// Products saved before the generic "options" system existed only have
+// `colors`/`sizes` arrays — treat those as regular option groups so old
+// listings keep working exactly as before.
+function normalizeOptions(p) {
+  if (Array.isArray(p.options) && p.options.length) return p.options;
+  const legacy = [];
+  if (p.colors?.length) legacy.push({ name: 'Color', values: p.colors });
+  if (p.sizes?.length) legacy.push({ name: 'Size', values: p.sizes });
+  return legacy;
 }
 
 async function loadProduct() {
@@ -45,8 +55,8 @@ async function loadProduct() {
 function render() {
   const p = productData;
   const images = (p.images && p.images.length) ? p.images : ['assets/logo.jpeg'];
-  const colors = p.colors || [];
-  const sizes = p.sizes || [];
+  const options = normalizeOptions(p);
+  selectedOptions = {};
   const stock = p.stock;
   const inStock = (stock === undefined || stock === null) || Number(stock) > 0;
   const lowStock = inStock && stock !== undefined && stock !== null && Number(stock) <= 5;
@@ -74,21 +84,13 @@ function render() {
         <div class="pd-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
         <p class="pd-desc">${escapeHtml(p.description || '')}</p>
 
-        ${colors.length ? `
+        ${options.map((opt, gi) => `
         <div class="option-group">
-          <label>Color</label>
-          <div class="option-pills" id="colorPills">
-            ${colors.map(c => `<div class="pill" data-color="${c}">${escapeHtml(c)}</div>`).join('')}
+          <label>${escapeHtml(opt.name)}</label>
+          <div class="option-pills" data-opt-group="${gi}">
+            ${opt.values.map(v => `<div class="pill" data-opt-value="${escapeHtml(v)}">${escapeHtml(v)}</div>`).join('')}
           </div>
-        </div>` : ''}
-
-        ${sizes.length ? `
-        <div class="option-group">
-          <label>Size</label>
-          <div class="option-pills" id="sizePills">
-            ${sizes.map(s => `<div class="pill" data-size="${s}">${escapeHtml(s)}</div>`).join('')}
-          </div>
-        </div>` : ''}
+        </div>`).join('')}
 
         <div class="option-group">
           <label>Quantity</label>
@@ -137,25 +139,18 @@ function render() {
     toast(added ? `Added "${p.name}" to your wishlist` : `Removed "${p.name}" from your wishlist`, 'wishlist');
   });
 
-  // Color selection
-  const colorPills = document.querySelectorAll('#colorPills .pill');
-  colorPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      colorPills.forEach(pp => pp.classList.remove('active'));
-      pill.classList.add('active');
-      selectedColor = pill.dataset.color;
+  // Option selection (Color, Size, Flavour, Contains, or any custom type
+  // the admin added) — one pill group per option, one selection each.
+  options.forEach((opt, gi) => {
+    const pills = document.querySelectorAll(`[data-opt-group="${gi}"] .pill`);
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(pp => pp.classList.remove('active'));
+        pill.classList.add('active');
+        selectedOptions[opt.name] = pill.dataset.optValue;
+      });
     });
-  });
-  if (colors.length === 1) { colorPills[0]?.click(); }
-
-  // Size selection
-  const sizePills = document.querySelectorAll('#sizePills .pill');
-  sizePills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      sizePills.forEach(pp => pp.classList.remove('active'));
-      pill.classList.add('active');
-      selectedSize = pill.dataset.size;
-    });
+    if (opt.values.length === 1) pills[0]?.click();
   });
 
   // Quantity
@@ -171,15 +166,22 @@ function render() {
 
   // Add to cart
   document.getElementById('addToCartBtn').addEventListener('click', () => {
-    if (colors.length && !selectedColor) { toast('Please select a color.', 'error'); return; }
-    if (sizes.length && !selectedSize) { toast('Please select a size.', 'error'); return; }
+    for (const opt of options) {
+      if (!selectedOptions[opt.name]) {
+        toast(`Please select a ${opt.name.toLowerCase()}.`, 'error');
+        return;
+      }
+    }
     addToCart({
       productId,
       name: p.name,
       image: images[0],
       price: Number(p.price),
-      color: selectedColor,
-      size: selectedSize,
+      // Kept for backward compatibility with older cart/order display code
+      // that reads these two fields directly; `options` carries everything.
+      color: selectedOptions['Color'] || null,
+      size: selectedOptions['Size'] || null,
+      options: { ...selectedOptions },
       qty,
       vendorName: p.vendorName || '',
       vendorPhone: p.vendorPhone || ''

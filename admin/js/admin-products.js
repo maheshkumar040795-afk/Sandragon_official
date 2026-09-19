@@ -16,8 +16,7 @@ if (categorySelect) {
 }
 
 let uploadedImages = [];
-let colors = [];
-let sizes = [];
+let options = []; // [{ name: 'Color', values: ['Black','Red'] }, ...]
 let editingId = null;
 
 const tbody = document.getElementById('productsTableBody');
@@ -78,8 +77,7 @@ async function deleteProduct(id) {
 function resetModal() {
   editingId = null;
   uploadedImages = [];
-  colors = [];
-  sizes = [];
+  options = [];
   document.getElementById('modalTitle').textContent = 'Add Product';
   document.getElementById('productId').value = '';
   document.getElementById('fName').value = '';
@@ -92,8 +90,20 @@ function resetModal() {
   document.getElementById('fActive').checked = true;
   document.getElementById('fCouponExcluded').checked = false;
   renderImagePreview();
-  renderTags('colorTagInput', 'colorInputField', colors);
-  renderTags('sizeTagInput', 'sizeInputField', sizes);
+  renderOptionGroups();
+}
+
+// Products saved before the generic "options" system existed still only
+// have `colors`/`sizes` arrays — surface those as regular option groups so
+// editing an old product doesn't wipe them; saving migrates it to `options`.
+function optionsFromProduct(p) {
+  if (Array.isArray(p.options) && p.options.length) {
+    return p.options.map(o => ({ name: o.name, values: [...(o.values || [])] }));
+  }
+  const legacy = [];
+  if (p.colors?.length) legacy.push({ name: 'Color', values: [...p.colors] });
+  if (p.sizes?.length) legacy.push({ name: 'Size', values: [...p.sizes] });
+  return legacy;
 }
 
 async function openModal(id) {
@@ -115,11 +125,9 @@ async function openModal(id) {
       document.getElementById('fActive').checked = !!p.active;
       document.getElementById('fCouponExcluded').checked = !!p.couponExcluded;
       uploadedImages = p.images || [];
-      colors = p.colors || [];
-      sizes = p.sizes || [];
+      options = optionsFromProduct(p);
       renderImagePreview();
-      renderTags('colorTagInput', 'colorInputField', colors);
-      renderTags('sizeTagInput', 'sizeInputField', sizes);
+      renderOptionGroups();
     }
   }
   modal.classList.add('open');
@@ -165,38 +173,86 @@ function renderImagePreview() {
   );
 }
 
-// ---- Tag inputs (colors / sizes) ----
-function renderTags(containerId, inputId, arr) {
-  const container = document.getElementById(containerId);
-  const chips = arr.map((val, i) => `
-    <span class="tag-chip">${val}<button type="button" data-remove-tag="${i}" data-arr="${containerId}">×</button></span>
-  `).join('');
-  container.innerHTML = chips + `<input type="text" class="tag-chip-input" id="${inputId}" placeholder="Type & press Enter">`;
+// ---- Product options (Color / Size / Flavour / Contains / custom…) ----
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
 
-  document.getElementById(inputId).addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.value.trim()) {
-      e.preventDefault();
-      arr.push(e.target.value.trim());
-      renderTags(containerId, inputId, arr);
-    }
+function renderOptionGroups() {
+  const wrap = document.getElementById('optionGroups');
+  if (!wrap) return;
+  wrap.innerHTML = options.map((opt, gi) => `
+    <div class="option-group-admin" data-group="${gi}">
+      <div class="option-group-admin-top">
+        <strong>${escapeHtml(opt.name)}</strong>
+        <button type="button" class="option-group-remove" data-remove-group="${gi}" aria-label="Remove ${escapeHtml(opt.name)}"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="multi-tag-input" data-values="${gi}"></div>
+    </div>
+  `).join('');
+
+  options.forEach((opt, gi) => {
+    renderOptionValues(wrap.querySelector(`[data-values="${gi}"]`), opt);
   });
-  container.querySelectorAll('[data-remove-tag]').forEach(btn =>
+
+  wrap.querySelectorAll('[data-remove-group]').forEach(btn =>
     btn.addEventListener('click', () => {
-      arr.splice(+btn.dataset.removeTag, 1);
-      renderTags(containerId, inputId, arr);
+      options.splice(+btn.dataset.removeGroup, 1);
+      renderOptionGroups();
     })
   );
 }
 
+function renderOptionValues(container, opt) {
+  if (!container) return;
+  const chips = opt.values.map((val, i) => `
+    <span class="tag-chip">${escapeHtml(val)}<button type="button" data-remove-val="${i}">×</button></span>
+  `).join('');
+  container.innerHTML = chips + `<input type="text" class="tag-chip-input" placeholder="Type a value & press Enter">`;
+
+  container.querySelector('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.value.trim()) {
+      e.preventDefault();
+      opt.values.push(e.target.value.trim());
+      renderOptionValues(container, opt);
+    }
+  });
+  container.querySelectorAll('[data-remove-val]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      opt.values.splice(+btn.dataset.removeVal, 1);
+      renderOptionValues(container, opt);
+    })
+  );
+}
+
+document.getElementById('addOptionTypeBtn').addEventListener('click', () => {
+  const select = document.getElementById('newOptionType');
+  let typeName = select.value;
+  if (typeName === '__custom') {
+    typeName = (prompt('Enter a custom option type name (e.g. Fragrance, Weight):') || '').trim();
+    if (!typeName) return;
+  }
+  if (!typeName) { alert('Please select or enter an option type.'); return; }
+  if (options.some(o => o.name.toLowerCase() === typeName.toLowerCase())) {
+    alert(`"${typeName}" is already added.`);
+    return;
+  }
+  options.push({ name: typeName, values: [] });
+  renderOptionGroups();
+  select.value = '';
+});
+
 // ---- Save product ----
 document.getElementById('saveProductBtn').addEventListener('click', async () => {
-  // Auto-commit any text still sitting in the color/size inputs that the
-  // admin typed but never pressed Enter for — otherwise it's silently
-  // lost and the customer never sees it.
-  const pendingColor = document.getElementById('colorInputField')?.value.trim();
-  if (pendingColor) { colors.push(pendingColor); renderTags('colorTagInput', 'colorInputField', colors); }
-  const pendingSize = document.getElementById('sizeInputField')?.value.trim();
-  if (pendingSize) { sizes.push(pendingSize); renderTags('sizeTagInput', 'sizeInputField', sizes); }
+  // Auto-commit any text still sitting in an option's value input that the
+  // admin typed but never pressed Enter for — otherwise it's silently lost.
+  document.querySelectorAll('#optionGroups [data-values] input').forEach(input => {
+    const val = input.value.trim();
+    if (!val) return;
+    const gi = +input.closest('[data-values]').dataset.values;
+    options[gi]?.values.push(val);
+  });
+  renderOptionGroups();
 
   const name = document.getElementById('fName').value.trim();
   const price = Number(document.getElementById('fPrice').value);
@@ -213,8 +269,7 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     vendorName: document.getElementById('fVendorName').value.trim(),
     vendorPhone: document.getElementById('fVendorPhone').value.trim(),
     images: uploadedImages,
-    colors,
-    sizes,
+    options: options.filter(o => o.values.length > 0),
     active: document.getElementById('fActive').checked,
     couponExcluded: document.getElementById('fCouponExcluded').checked
   };

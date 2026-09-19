@@ -18,9 +18,11 @@ export function saveCart(cart) {
 
 export function addToCart(item) {
   const cart = getCart();
-  // Merge if same product+color+size already in cart
+  // Merge if it's the same product with the exact same option selections
+  // already in cart (Color/Size/Flavour/etc. — any combination the admin set up).
   const existing = cart.find(
-    c => c.productId === item.productId && c.color === item.color && c.size === item.size
+    c => c.productId === item.productId &&
+      JSON.stringify(c.options || {}) === JSON.stringify(item.options || {})
   );
   if (existing) {
     existing.qty += item.qty;

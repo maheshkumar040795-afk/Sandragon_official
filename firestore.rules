@@ -84,5 +84,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Categories: admin-managed from Admin → Categories. Public read (the
+    // storefront's filter pills, mega-menu, and the admin product form's
+    // dropdown all read this live), admin-only write (add/rename/delete).
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

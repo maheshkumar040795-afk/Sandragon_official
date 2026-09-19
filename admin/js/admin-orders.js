@@ -17,6 +17,19 @@ const statusLabels = {
   shipped: 'Shipped', delivered: 'Delivered'
 };
 
+// Shows every selected option (Color, Size, Flavour, Contains, or any
+// custom type the admin added). Falls back to the older color/size-only
+// fields for orders placed before the generic options system existed.
+function itemVariantLabel(i) {
+  if (i.options && Object.keys(i.options).length) {
+    return Object.entries(i.options).map(([k, v]) => `${k}: ${v}`).join(', ');
+  }
+  const parts = [];
+  if (i.color) parts.push('Color: ' + i.color);
+  if (i.size) parts.push('Size: ' + i.size);
+  return parts.join(', ');
+}
+
 async function loadOrders() {
   tbody.innerHTML = `<tr><td colspan="6" class="text-center">Loading...</td></tr>`;
   const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
@@ -45,9 +58,10 @@ async function loadOrders() {
 }
 
 function buildConfirmMessage(o) {
-  const itemLines = o.items.map(i =>
-    `• ${i.name}${i.color ? ' (' + i.color : ''}${i.size ? (i.color ? ', ' : ' (') + i.size : ''}${(i.color || i.size) ? ')' : ''} x${i.qty}`
-  ).join('\n');
+  const itemLines = o.items.map(i => {
+    const variant = itemVariantLabel(i);
+    return `• ${i.name}${variant ? ' (' + variant + ')' : ''} x${i.qty}`;
+  }).join('\n');
   return `Hi ${o.customer.name}! 🙏 Thank you for shopping with SANDRAGON.\n\nYour order #${o.id.slice(-8).toUpperCase()} has been confirmed:\n${itemLines}\n\nTotal Paid: ₹${Number(o.totalAmount).toLocaleString('en-IN')}\n\nWe're preparing your order now and will share tracking details soon. For any queries, reach us here anytime. 🐉`;
 }
 
@@ -64,9 +78,10 @@ function groupItemsByVendor(o) {
 }
 
 function buildVendorMessage(o, group) {
-  const itemLines = group.items.map(i =>
-    `• ${i.name}${i.color ? ' - Color: ' + i.color : ''}${i.size ? ' - Size: ' + i.size : ''} x${i.qty}`
-  ).join('\n');
+  const itemLines = group.items.map(i => {
+    const variant = itemVariantLabel(i);
+    return `• ${i.name}${variant ? ' - ' + variant : ''} x${i.qty}`;
+  }).join('\n');
   return `New order to prepare — SANDRAGON #${o.id.slice(-8).toUpperCase()}\n\nItems:\n${itemLines}\n\nShip to:\n${o.customer.name}\n${o.customer.address}\nPincode: ${o.customer.pincode}\nPhone: ${o.customer.phone}\n\nPlease pack and courier at the earliest, and share the AWB/tracking number once dispatched. Thank you!`;
 }
 
@@ -86,9 +101,9 @@ function openOrder(id) {
 
   document.getElementById('modalOrderBody').innerHTML = `
     <table style="margin-bottom:16px">
-      <thead><tr><th>Item</th><th>Color</th><th>Size</th><th>Qty</th><th>Price</th><th>Vendor</th></tr></thead>
+      <thead><tr><th>Item</th><th>Options</th><th>Qty</th><th>Price</th><th>Vendor</th></tr></thead>
       <tbody>
-        ${o.items.map(i => `<tr><td>${i.name}</td><td>${i.color || '—'}</td><td>${i.size || '—'}</td><td>${i.qty}</td><td>₹${i.price}</td><td>${i.vendorName || '—'}${i.vendorPhone ? '<br><span class="stock-note">' + i.vendorPhone + '</span>' : ''}</td></tr>`).join('')}
+        ${o.items.map(i => `<tr><td>${i.name}</td><td>${itemVariantLabel(i) || '—'}</td><td>${i.qty}</td><td>₹${i.price}</td><td>${i.vendorName || '—'}${i.vendorPhone ? '<br><span class="stock-note">' + i.vendorPhone + '</span>' : ''}</td></tr>`).join('')}
       </tbody>
     </table>
     ${hasBreakdown ? `

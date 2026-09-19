@@ -55,8 +55,15 @@ function orderTotalsHtml(o) {
   `;
 }
 
+function itemVariantLabel(i) {
+  if (i.options && Object.keys(i.options).length) {
+    return Object.values(i.options).filter(Boolean).join(' / ');
+  }
+  return [i.color, i.size].filter(Boolean).join(' / ');
+}
+
 function itemLineHtml(i) {
-  const variant = [i.color, i.size].filter(Boolean).join(' / ');
+  const variant = itemVariantLabel(i);
   return `
     <div class="order-item-line">
       <img src="${i.image || 'assets/logo.jpeg'}" alt="${escapeHtml(i.name)}">

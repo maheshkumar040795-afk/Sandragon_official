@@ -25,7 +25,9 @@ built the same way (vanilla JS + Firestore, no framework, no build step):
 | **One-word logo** | The header/sidebar logo now renders as a single solid word, "SANDRAGON," everywhere (customer + admin) — the earlier two-tone "SAN‑D‑RAGON" span has been removed. | all `.html` files, `css/style.css` |
 | **Per-product coupon exclusion** | New "Coupon not applicable for this product" checkbox on each product in admin. If a cart contains that product, applying any coupon code is blocked with a message naming the product. | `admin/dashboard.html`, `admin/js/admin-products.js`, `js/cart.js` |
 | **Admin review moderation** | New "Reviews" button on each product row in admin opens a panel listing every customer review for that product with a Delete option (aggregate rating auto-corrects), plus a form for admin to post its own review (name, star rating, comment) — shown on the storefront with a "Store" badge. | `admin/js/admin-product-reviews.js` (UI added to `admin/dashboard.html`), `js/reviews.js` |
-| **"Become a Dealer" CTA** | A highlighted, pulsing tab fixed to the right edge of every customer page. Clicking it opens a form (Name, Mobile, Message) with a "Send via WhatsApp" button that opens WhatsApp with an auto-drafted message containing those details. | `js/dealer-cta.js` |
+| **"Become a Dealer" CTA** | A highlighted, pulsing tab fixed to the right edge of every customer page (positioned above the WhatsApp/Call floating buttons so it never overlaps them). Clicking it opens a form (Name, Mobile, Message) with a "Send via WhatsApp" button that opens WhatsApp with an auto-drafted message containing those details. | `js/dealer-cta.js` |
+| **Generic product options** | The fixed "Colors" and "Sizes" fields are now a general **Product Options** builder — add any option type (Color, Size, Flavour, Contains, Material, or a custom name) and its values, and customers pick one value per option before adding to cart. Existing products with only `colors`/`sizes` keep working unchanged and auto-migrate the next time they're saved. | `admin/dashboard.html`, `admin/js/admin-products.js`, `js/product-detail.js`, `js/cart-store.js`, `js/cart.js`, `js/order-history.js`, `admin/js/admin-orders.js` |
+| **Admin-managed categories** | New **Categories** tab in admin to add, rename, or delete categories (name + optional Font Awesome icon) — instantly reflected in the "Add Product" category dropdown, the storefront's category filter pills, and the header's category mega-menu. First visit auto-seeds the original 9 categories so existing products keep their category. | `admin/categories.html`, `admin/js/admin-categories.js`, `js/categories.js` (now Firestore-backed) |
 
 **One-time setup step for this update:** re-deploy `firestore.rules` —
 ```bash
@@ -34,7 +36,8 @@ firebase deploy --only firestore:rules
 It adds the `reviews` subcollection and `coupons` collection, plus a narrowly-scoped
 public rule that lets a review bump only the `ratingCount`/`ratingSum` fields on a
 product (everything else on `products` stays admin-only), and the same pattern for
-a coupon's `usageCount`.
+a coupon's `usageCount`. This update also adds the `categories` collection
+(public read, admin-only write) that the new Categories admin tab uses.
 
 
 Black/gold theme built to match your logo. Vanilla HTML/CSS/JS + Firebase (Firestore + Auth)
