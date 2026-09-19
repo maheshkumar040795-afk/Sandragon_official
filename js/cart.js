@@ -125,6 +125,25 @@ document.getElementById('couponInput')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); }
 });
 
+// If any product currently in the cart is admin-flagged "coupon not
+// applicable," coupons can't be applied at all while it's in the cart —
+// returns that product's name, or null if every item is eligible.
+async function findCouponExcludedItem(cart) {
+  const uniqueIds = [...new Set(cart.map(i => i.productId))];
+  for (const productId of uniqueIds) {
+    try {
+      const snap = await getDoc(doc(db, 'products', productId));
+      if (snap.exists() && snap.data().couponExcluded) {
+        const item = cart.find(i => i.productId === productId);
+        return item ? item.name : 'This item';
+      }
+    } catch (err) {
+      console.warn(`Could not check coupon eligibility for product ${productId}`, err);
+    }
+  }
+  return null;
+}
+
 async function applyCoupon() {
   const input = document.getElementById('couponInput');
   const code = input.value.trim().toUpperCase();
@@ -132,6 +151,13 @@ async function applyCoupon() {
   const btn = document.getElementById('applyCouponBtn');
   btn.disabled = true;
   try {
+    const excludedName = await findCouponExcludedItem(getCart());
+    if (excludedName) {
+      appliedCoupon = null;
+      showCouponMsg(`"${excludedName}" is not applicable for coupon codes. Remove it from your cart to use a coupon.`, false);
+      updateSummary();
+      return;
+    }
     const snap = await getDoc(doc(db, 'coupons', code));
     if (!snap.exists() || snap.data().active === false) {
       appliedCoupon = null;

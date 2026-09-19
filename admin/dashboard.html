@@ -6,7 +6,7 @@
 <title>Products | SANDRAGON Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20260917">
+<link rel="stylesheet" href="../css/style.css?v=20260919">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -30,10 +30,10 @@
     </div>
     <table>
       <thead>
-        <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+        <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th><th>Reviews</th></tr>
       </thead>
       <tbody id="productsTableBody">
-        <tr><td colspan="7" class="text-center">Loading...</td></tr>
+        <tr><td colspan="8" class="text-center">Loading...</td></tr>
       </tbody>
     </table>
   </main>
@@ -100,6 +100,12 @@
         <input type="checkbox" id="fActive" style="width:auto" checked> Visible in store
       </label>
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="fCouponExcluded" style="width:auto"> Coupon not applicable for this product
+      </label>
+      <p class="stock-note" style="margin-top:4px">If checked, customers who have this product in their cart won't be able to apply any coupon code.</p>
+    </div>
 
     <div style="display:flex;gap:10px;margin-top:20px">
       <button class="btn" id="saveProductBtn" style="flex:1">Save Product</button>
@@ -108,7 +114,30 @@
   </div>
 </div>
 
+<!-- Reviews Modal -->
+<div class="modal-overlay" id="reviewsModal">
+  <div class="modal" style="max-width:560px">
+    <h3>Reviews — <span id="reviewsModalProductName"></span></h3>
+    <input type="hidden" id="reviewsModalProductId">
+
+    <div class="review-form-card">
+      <label>Post a Review as SANDRAGON</label>
+      <div class="review-star-input" id="adminReviewStarInput">
+        <i class="far fa-star" data-star="1"></i><i class="far fa-star" data-star="2"></i><i class="far fa-star" data-star="3"></i><i class="far fa-star" data-star="4"></i><i class="far fa-star" data-star="5"></i>
+      </div>
+      <div class="form-group mt-10"><input type="text" id="adminReviewName" placeholder="Reviewer name (e.g. SANDRAGON Team)" maxlength="60"></div>
+      <div class="form-group"><textarea id="adminReviewComment" rows="3" placeholder="Write a review for this product" maxlength="600"></textarea></div>
+      <button class="btn small" id="adminSubmitReviewBtn">Post Review</button>
+    </div>
+
+    <div id="adminReviewsList" class="mt-20"><div class="spinner"></div></div>
+
+    <button class="btn outline mt-20" id="closeReviewsModalBtn" style="width:100%">Close</button>
+  </div>
+</div>
+
 <script type="module" src="js/admin-products.js"></script>
-<script src="../js/premium.js?v=20260917" defer></script>
+<script type="module" src="js/admin-product-reviews.js"></script>
+<script src="../js/premium.js?v=20260919" defer></script>
 </body>
 </html>

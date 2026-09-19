@@ -255,6 +255,7 @@ function reviewItemHtml(r) {
     <div class="review-item">
       <div class="review-item-top">
         <strong>${escapeHtml(r.name)}</strong>
+        ${r.byAdmin ? '<span class="admin-review-badge">Store</span>' : ''}
         <span class="review-stars">${stars}</span>
       </div>
       ${r.comment ? `<p class="review-comment">${escapeHtml(r.comment)}</p>` : ''}

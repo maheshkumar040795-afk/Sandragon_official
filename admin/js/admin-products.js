@@ -24,11 +24,11 @@ const tbody = document.getElementById('productsTableBody');
 const modal = document.getElementById('productModal');
 
 async function loadProducts() {
-  tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center">Loading...</td></tr>`;
   const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
   if (snap.empty) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center">No products yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center">No products yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = '';
@@ -47,6 +47,9 @@ async function loadProducts() {
       <td>
         <button class="btn small outline" data-edit="${id}">Edit</button>
         <button class="btn small danger" data-delete="${id}">Delete</button>
+      </td>
+      <td>
+        <button class="btn small outline" data-reviews="${id}" data-name="${(p.name || '').replace(/"/g,'&quot;')}"><i class="fas fa-star"></i> Reviews</button>
       </td>`;
     tbody.appendChild(row);
   });
@@ -56,6 +59,13 @@ async function loadProducts() {
   );
   tbody.querySelectorAll('[data-delete]').forEach(btn =>
     btn.addEventListener('click', () => deleteProduct(btn.dataset.delete))
+  );
+  tbody.querySelectorAll('[data-reviews]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('sandragon:open-product-reviews', {
+        detail: { productId: btn.dataset.reviews, productName: btn.dataset.name }
+      }));
+    })
   );
 }
 
@@ -80,6 +90,7 @@ function resetModal() {
   document.getElementById('fVendorName').value = '';
   document.getElementById('fVendorPhone').value = '';
   document.getElementById('fActive').checked = true;
+  document.getElementById('fCouponExcluded').checked = false;
   renderImagePreview();
   renderTags('colorTagInput', 'colorInputField', colors);
   renderTags('sizeTagInput', 'sizeInputField', sizes);
@@ -102,6 +113,7 @@ async function openModal(id) {
       document.getElementById('fVendorName').value = p.vendorName || '';
       document.getElementById('fVendorPhone').value = p.vendorPhone || '';
       document.getElementById('fActive').checked = !!p.active;
+      document.getElementById('fCouponExcluded').checked = !!p.couponExcluded;
       uploadedImages = p.images || [];
       colors = p.colors || [];
       sizes = p.sizes || [];
@@ -203,7 +215,8 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     images: uploadedImages,
     colors,
     sizes,
-    active: document.getElementById('fActive').checked
+    active: document.getElementById('fActive').checked,
+    couponExcluded: document.getElementById('fCouponExcluded').checked
   };
 
   try {

@@ -4,7 +4,7 @@
 // the parent product doc as ratingSum/ratingCount and kept in sync with
 // increment() every time a review is submitted.
 import {
-  db, collection, addDoc, getDocs, doc, updateDoc, query, orderBy,
+  db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy,
   serverTimestamp, increment
 } from "./firebase-init.js";
 
@@ -37,9 +37,10 @@ export async function fetchReviews(productId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function submitReview(productId, { name, rating, comment }) {
+export async function submitReview(productId, { name, rating, comment, byAdmin = false }) {
   await addDoc(collection(db, 'products', productId, 'reviews'), {
-    name, rating, comment, createdAt: serverTimestamp()
+    name, rating, comment, createdAt: serverTimestamp(),
+    ...(byAdmin ? { byAdmin: true } : {})
   });
   // Best-effort aggregate sync — a failure here just means the card-level
   // average lags slightly; the review itself is already saved above.
@@ -50,5 +51,19 @@ export async function submitReview(productId, { name, rating, comment }) {
     });
   } catch (err) {
     console.warn('Could not update rating aggregate', err);
+  }
+}
+
+// Admin-only: removes a review and rolls back its contribution to the
+// denormalized rating aggregate so the average/count stay accurate.
+export async function deleteReview(productId, reviewId, rating) {
+  await deleteDoc(doc(db, 'products', productId, 'reviews', reviewId));
+  try {
+    await updateDoc(doc(db, 'products', productId), {
+      ratingCount: increment(-1),
+      ratingSum: increment(-Number(rating) || 0)
+    });
+  } catch (err) {
+    console.warn('Could not update rating aggregate after delete', err);
   }
 }
