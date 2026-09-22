@@ -1,5 +1,6 @@
 import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
+import { categoryVisualHtml } from "./category-visual.js";
 import { rankResults } from "./nav-features.js";
 import { toggleWishlist, isWishlisted } from "./wishlist-store.js";
 import { ratingAvg, starsHtml } from "./reviews.js";
@@ -156,7 +157,7 @@ function renderPills() {
     <div class="cat-pill ${!activeCategory ? 'active' : ''}" data-cat="">All</div>
     ${usable.map(c => `
       <div class="cat-pill ${activeCategory === c.id ? 'active' : ''}" data-cat="${c.id}">
-        <i class="fas ${c.icon}"></i> ${c.name}
+        ${categoryVisualHtml(c, 'cat-pill-icon')} ${c.name}
       </div>
     `).join('')}
   `;

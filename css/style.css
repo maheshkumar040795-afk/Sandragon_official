@@ -98,6 +98,12 @@ header.navbar{
 .navbar .container{display:flex;align-items:center;justify-content:space-between;padding:15px 20px;flex-wrap:wrap;row-gap:12px}
 .brand{display:flex;align-items:center;gap:10px;font-family:'Playfair Display',serif;font-size:1.4rem;letter-spacing:2px}
 .brand img{height:38px;width:auto;border-radius:6px;box-shadow:0 0 0 1px var(--border-gold)}
+/* letter-spacing on .brand applies trailing tracking after the last
+   character of each inline fragment — without these negative margins,
+   splitting the word into SAN / D / RAGON re-introduces the "SAN D
+   RAGON" gap bug this was fixed for previously. */
+.brand-d{color:#e2202f;margin-left:-2px}
+.brand-tail{margin-left:-2px}
 .nav-links{display:flex;align-items:center;gap:22px}
 .nav-links a{position:relative;font-size:.82rem;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);transition:color .25s;white-space:nowrap}
 .nav-links a::after{
@@ -181,6 +187,7 @@ header.navbar{
   flex-shrink:0;box-shadow:0 4px 14px -4px rgba(201,162,39,.5);transition:transform .25s var(--ease);
 }
 .mega-menu-item:hover .mega-menu-icon{transform:scale(1.08)}
+.mega-menu-icon img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .mega-menu-all{
   display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-top:1px solid var(--border);
   color:var(--gold);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.5px;
@@ -272,6 +279,8 @@ header.navbar{
 }
 .cat-pill:hover{border-color:var(--border-gold);color:var(--gold-light)}
 .cat-pill.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#000;border-color:transparent;font-weight:700}
+.cat-pill-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0}
+.cat-pill-icon img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .search-results-banner{text-align:center;color:var(--muted);margin:-14px 0 34px;font-size:.92rem}
 .search-results-banner a{color:var(--gold);text-decoration:underline;margin-left:10px;cursor:pointer}
 
@@ -598,9 +607,44 @@ footer::before{
   content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:180px;height:1px;
   background:linear-gradient(90deg,transparent,var(--gold),transparent);
 }
+footer .footer-links-inline{font-size:.82rem;margin-bottom:12px}
+footer .footer-links-inline a{color:var(--muted);text-decoration:none;transition:color .25s var(--ease)}
+footer .footer-links-inline a:hover{color:var(--gold)}
 footer .social{display:flex;justify-content:center;gap:22px;margin:16px 0;font-size:1.3rem}
 footer .social a{transition:transform .3s var(--ease-spring),color .25s}
 footer .social a:hover{color:var(--gold);transform:translateY(-3px) scale(1.1)}
+
+/* Rich multi-column footer (landing page) */
+.footer-grid{
+  display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:36px;max-width:var(--maxw);margin:0 auto 30px;text-align:left;
+}
+.footer-col h4{
+  font-family:'Playfair Display',serif;color:var(--gold-light);font-size:1rem;letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:16px;
+}
+.footer-brand-col .brand{justify-content:flex-start}
+.footer-tag{font-size:.85rem;line-height:1.7;max-width:320px;margin-bottom:8px}
+.footer-brand-col .social{justify-content:flex-start;margin:14px 0 0}
+.footer-col a{
+  display:block;color:var(--muted);font-size:.88rem;text-decoration:none;margin-bottom:12px;
+  transition:color .25s var(--ease),transform .25s var(--ease);width:fit-content;
+}
+.footer-col a:hover{color:var(--gold);transform:translateX(4px)}
+.footer-bottom{
+  text-align:center;padding-top:26px;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem;
+}
+.footer-bottom a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.footer-bottom a:hover{color:var(--gold)}
+@media(max-width:820px){
+  .footer-grid{grid-template-columns:1fr 1fr;text-align:left}
+  .footer-brand-col{grid-column:1/-1;text-align:center}
+  .footer-brand-col .brand,.footer-brand-col .social{justify-content:center}
+  .footer-tag{margin-left:auto;margin-right:auto}
+}
+@media(max-width:560px){
+  .footer-grid{grid-template-columns:1fr;text-align:center}
+  .footer-col a{margin-left:auto;margin-right:auto}
+}
 
 /* Floating buttons */
 .floating-buttons{position:fixed;bottom:24px;right:20px;display:flex;flex-direction:column;gap:12px;z-index:200}
@@ -1078,3 +1122,28 @@ body.sd-cursor-active .sd-cursor-ring{opacity:1}
 }
 @media(hover:none),(pointer:coarse){.sd-cursor-dot,.sd-cursor-ring{display:none}}
 @media(prefers-reduced-motion:reduce){.sd-cursor-dot,.sd-cursor-ring{display:none}}
+
+/* ============================================================
+   Terms / policy page
+   ============================================================ */
+.policy-updated{color:var(--muted);font-size:.85rem;margin:-10px 0 26px}
+.policy-toc{
+  display:flex;flex-wrap:wrap;gap:10px;margin-bottom:34px;padding:16px;
+  background:var(--card-glass);border:1px solid var(--border);border-radius:var(--radius);
+}
+.policy-toc a{
+  font-size:.82rem;padding:6px 14px;border-radius:999px;border:1px solid var(--border);
+  color:var(--muted);text-decoration:none;transition:.25s var(--ease);
+}
+.policy-toc a:hover{color:var(--gold);border-color:var(--border-gold)}
+.policy-section{margin-bottom:34px;scroll-margin-top:90px}
+.policy-section h3{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.policy-section p{color:var(--muted);line-height:1.8;margin-bottom:10px}
+.policy-section a{color:var(--gold)}
+.policy-list{margin:10px 0 14px 22px;color:var(--muted);line-height:1.8}
+.policy-list li{margin-bottom:8px}
+.policy-highlight{
+  padding:22px;border-radius:var(--radius-lg);background:var(--gold-dim);
+  border:1px solid var(--border-gold);
+}
+.policy-highlight h3{color:var(--gold-light)}

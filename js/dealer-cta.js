@@ -30,9 +30,17 @@ function build() {
   document.body.appendChild(overlay);
 
   const closeModal = () => overlay.classList.remove('open');
-  tab.addEventListener('click', () => overlay.classList.add('open'));
+  const openModal = (e) => { e?.preventDefault(); overlay.classList.add('open'); };
+  tab.addEventListener('click', openModal);
   overlay.querySelector('#dealerCloseBtn').addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+  // Any other element on the page (e.g. a footer "Become a Dealer" link)
+  // can open this same modal without duplicating the form — just give it
+  // this id or a [data-open-dealer] attribute.
+  document.querySelectorAll('#footerDealerLink, [data-open-dealer]').forEach(el => {
+    el.addEventListener('click', openModal);
+  });
 
   overlay.querySelector('#dealerWhatsappBtn').addEventListener('click', () => {
     const name = document.getElementById('dealerName').value.trim();

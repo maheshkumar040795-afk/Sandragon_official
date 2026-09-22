@@ -3,6 +3,7 @@
 // #categoryMegaMenu in the page's markup and wires them up if present.
 import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
+import { categoryVisualHtml } from "./category-visual.js";
 import { getCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
 import { updateWishlistBadge } from "./wishlist-store.js";
@@ -15,7 +16,7 @@ function buildMegaMenu() {
     <div class="mega-menu-grid">
       ${CATEGORIES.map(c => `
         <a href="index.html?category=${c.id}" class="mega-menu-item">
-          <span class="mega-menu-icon"><i class="fas ${c.icon}"></i></span>
+          ${categoryVisualHtml(c, 'mega-menu-icon')}
           <span>${c.name}</span>
         </a>
       `).join('')}
@@ -67,26 +68,41 @@ function loadProductIndex() {
   return loadingPromise;
 }
 
+// Returns { score, matched } — matched is how many of the search terms
+// this item satisfied, so rankResults can prefer items matching every
+// word but still fall back to partial matches instead of showing nothing.
 function matchScore(item, terms) {
-  const hay = `${item.name} ${categoryName(item.category)} ${item.description}`.toLowerCase();
+  const name = item.name.toLowerCase();
+  const hay = `${name} ${categoryName(item.category).toLowerCase()} ${(item.description || '').toLowerCase()}`;
   let score = 0;
+  let matched = 0;
   for (const t of terms) {
     if (!t) continue;
-    if (item.name.toLowerCase().startsWith(t)) score += 5;
-    else if (item.name.toLowerCase().includes(t)) score += 3;
-    else if (hay.includes(t)) score += 1;
-    else return -1; // every term must match something
+    if (name.startsWith(t)) { score += 5; matched++; }
+    else if (name.includes(t)) { score += 3; matched++; }
+    else if (hay.includes(t)) { score += 1; matched++; }
+    // singular/plural forgiveness: "bat" should also catch "bats" and
+    // vice versa, since shoppers rarely type the exact stored form.
+    else if (t.length > 2 && (hay.includes(t.replace(/s$/, '')) || hay.includes(t + 's'))) { score += 1; matched++; }
   }
-  return score;
+  return { score, matched };
 }
 
 function rankResults(items, rawQuery) {
   const terms = rawQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
-  return items
-    .map(item => ({ item, score: matchScore(item, terms) }))
-    .filter(r => r.score >= 0)
-    .sort((a, b) => b.score - a.score)
+  const scored = items.map(item => ({ item, ...matchScore(item, terms) }));
+
+  // Prefer items matching every term (classic AND search); if that yields
+  // nothing, fall back to items matching at least one term so a slightly
+  // over-specific query (e.g. "cricket bat" when a product is just named
+  // "SS Bat") still returns something useful instead of a blank "no
+  // results" screen.
+  const allMatched = scored.filter(r => r.matched === terms.length);
+  const pool = allMatched.length ? allMatched : scored.filter(r => r.matched > 0);
+
+  return pool
+    .sort((a, b) => (b.matched - a.matched) || (b.score - a.score))
     .map(r => r.item);
 }
 

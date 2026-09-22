@@ -3,6 +3,7 @@ import {
   db, collection, getDocs, setDoc, updateDoc, deleteDoc, doc,
   orderBy, query, serverTimestamp
 } from "../../js/firebase-init.js";
+import { cloudinaryConfig } from "../../js/config.js";
 
 requireAdmin(() => loadCategories());
 setupLogoutButton();
@@ -10,6 +11,7 @@ setupLogoutButton();
 const tbody = document.getElementById('categoriesTableBody');
 const modal = document.getElementById('categoryModal');
 let editingId = null;
+let uploadedImage = ''; // Cloudinary URL for the category being added/edited
 
 // The categories this storefront originally shipped with — used as a
 // one-time seed so switching from the old hardcoded list to this
@@ -61,8 +63,11 @@ async function loadCategories() {
     const c = docSnap.data();
     const id = docSnap.id;
     const row = document.createElement('tr');
+    const iconCell = c.image
+      ? `<img src="${c.image}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`
+      : `<i class="fas ${c.icon || 'fa-tag'}" style="font-size:1.2rem;color:var(--gold)"></i>`;
     row.innerHTML = `
-      <td><i class="fas ${c.icon || 'fa-tag'}" style="font-size:1.2rem;color:var(--gold)"></i></td>
+      <td>${iconCell}</td>
       <td>${escapeHtml(c.name)}</td>
       <td><code>${escapeHtml(id)}</code></td>
       <td>
@@ -86,12 +91,47 @@ async function deleteCategory(id) {
   loadCategories();
 }
 
+function renderImagePreview() {
+  const grid = document.getElementById('categoryImagePreview');
+  grid.innerHTML = uploadedImage ? `
+    <div style="position:relative;width:fit-content">
+      <img src="${uploadedImage}" style="width:70px;height:70px;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
+      <button type="button" id="removeCategoryImageBtn" style="position:absolute;top:-6px;right:-6px;background:#c0392b;color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer">×</button>
+    </div>` : '';
+  document.getElementById('removeCategoryImageBtn')?.addEventListener('click', () => {
+    uploadedImage = '';
+    renderImagePreview();
+  });
+}
+
+document.getElementById('uploadCategoryImageBtn').addEventListener('click', () => {
+  if (cloudinaryConfig.cloudName === 'YOUR_CLOUDINARY_CLOUD_NAME') {
+    alert('Set your Cloudinary cloud name + upload preset in js/config.js first.');
+    return;
+  }
+  const widget = cloudinary.createUploadWidget({
+    cloudName: cloudinaryConfig.cloudName,
+    uploadPreset: cloudinaryConfig.uploadPreset,
+    multiple: false,
+    maxFiles: 1,
+    sources: ['local', 'camera']
+  }, (error, result) => {
+    if (!error && result.event === 'success') {
+      uploadedImage = result.info.secure_url;
+      renderImagePreview();
+    }
+  });
+  widget.open();
+});
+
 function resetModal() {
   editingId = null;
+  uploadedImage = '';
   document.getElementById('categoryModalTitle').textContent = 'Add Category';
   document.getElementById('editingCategoryId').value = '';
   document.getElementById('cName').value = '';
   document.getElementById('cIcon').value = '';
+  renderImagePreview();
 }
 
 async function openModal(id) {
@@ -105,6 +145,8 @@ async function openModal(id) {
       const c = target.data();
       document.getElementById('cName').value = c.name || '';
       document.getElementById('cIcon').value = c.icon || '';
+      uploadedImage = c.image || '';
+      renderImagePreview();
     }
   }
   modal.classList.add('open');
@@ -117,6 +159,7 @@ modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList
 document.getElementById('saveCategoryBtn').addEventListener('click', async () => {
   const name = document.getElementById('cName').value.trim();
   const icon = document.getElementById('cIcon').value.trim() || 'fa-tag';
+  const image = uploadedImage || '';
   if (!name) { alert('Category name is required.'); return; }
 
   const btn = document.getElementById('saveCategoryBtn');
@@ -125,10 +168,10 @@ document.getElementById('saveCategoryBtn').addEventListener('click', async () =>
     if (editingId) {
       // Renaming doesn't change the slug/ID — every product referencing it
       // keeps working, it just displays under the new name.
-      await updateDoc(doc(db, 'categories', editingId), { name, icon });
+      await updateDoc(doc(db, 'categories', editingId), { name, icon, image });
     } else {
       const slug = slugify(name);
-      await setDoc(doc(db, 'categories', slug), { name, icon, createdAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'categories', slug), { name, icon, image, createdAt: serverTimestamp() }, { merge: true });
     }
     modal.classList.remove('open');
     loadCategories();

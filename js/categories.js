@@ -33,7 +33,19 @@ export function categoryName(id) {
   return c ? c.name : '';
 }
 
+// Always returns a usable Font Awesome class — falls back to the generic
+// tag icon both when the category itself isn't found AND when it's found
+// but has no icon set (e.g. an older category doc saved before the icon
+// field had a default), so a category never renders with a blank icon.
 export function categoryIcon(id) {
   const c = CATEGORIES.find(c => c.id === id);
-  return c ? c.icon : 'fa-tag';
+  return (c && c.icon) ? c.icon : 'fa-tag';
+}
+
+// A category's uploaded logo/image, if admin set one — '' when there
+// isn't one, so callers can fall back to categoryIcon() for a plain
+// Font Awesome icon instead.
+export function categoryImage(id) {
+  const c = CATEGORIES.find(c => c.id === id);
+  return (c && c.image) || '';
 }
