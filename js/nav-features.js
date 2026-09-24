@@ -2,27 +2,41 @@
 // Loaded on every page. Looks for #siteSearchInput / #searchDropdown and
 // #categoryMegaMenu in the page's markup and wires them up if present.
 import { db, collection, getDocs, query, where } from "./firebase-init.js";
-import { CATEGORIES, categoryName } from "./categories.js";
+import { CATEGORIES, categoryName, refreshCategories } from "./categories.js";
 import { categoryVisualHtml } from "./category-visual.js";
 import { getCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
 import { updateWishlistBadge } from "./wishlist-store.js";
 
 /* ---------------- Category mega-menu ---------------- */
+function renderMegaMenuItems(menu) {
+  const body = CATEGORIES.length
+    ? `<div class="mega-menu-grid">
+        ${CATEGORIES.map(c => `
+          <a href="index.html?category=${c.id}" class="mega-menu-item">
+            ${categoryVisualHtml(c, 'mega-menu-icon')}
+            <span>${c.name}</span>
+          </a>
+        `).join('')}
+      </div>`
+    : `<div class="mega-menu-empty">Categories are loading… <br>or browse everything below.</div>`;
+  menu.innerHTML = `
+    ${body}
+    <a href="index.html#productGrid" class="mega-menu-all">View All Products <i class="fas fa-arrow-right"></i></a>
+  `;
+}
+
 function buildMegaMenu() {
   const menu = document.getElementById('categoryMegaMenu');
   if (!menu) return;
-  menu.innerHTML = `
-    <div class="mega-menu-grid">
-      ${CATEGORIES.map(c => `
-        <a href="index.html?category=${c.id}" class="mega-menu-item">
-          ${categoryVisualHtml(c, 'mega-menu-icon')}
-          <span>${c.name}</span>
-        </a>
-      `).join('')}
-    </div>
-    <a href="index.html" class="mega-menu-all">View All Products <i class="fas fa-arrow-right"></i></a>
-  `;
+  renderMegaMenuItems(menu);
+
+  // If the first fetch came back empty (slow network, or the page loaded
+  // before Firestore answered), try once more and re-render — never leave
+  // the menu as a blank box.
+  if (!CATEGORIES.length) {
+    refreshCategories().then(() => renderMegaMenuItems(menu));
+  }
 
   const wrap = menu.closest('.nav-cat-wrap');
   if (!wrap) return;
@@ -56,7 +70,8 @@ function loadProductIndex() {
           price: Number(p.price) || 0,
           image: (p.images && p.images[0]) || 'assets/logo.jpeg',
           category: p.category || '',
-          description: p.description || ''
+          description: p.description || '',
+          options: Array.isArray(p.options) ? p.options : []
         };
       });
     } catch (err) {
@@ -68,22 +83,93 @@ function loadProductIndex() {
   return loadingPromise;
 }
 
+// Sport / theme keywords → the product words that belong to them. Lets a
+// shopper type a sport ("cricket") or a goal ("gym") and see the related
+// gear even when those product names never contain that exact word
+// (e.g. "SS Master Bat" has no "cricket" in it). Extend freely.
+const RELATED_TERMS = {
+  cricket:    ['bat', 'ball', 'stump', 'wicket', 'bail', 'glove', 'pad', 'guard', 'helmet', 'willow', 'kit bag', 'grip', 'spike', 'abdomen', 'thigh', 'arm guard', 'leather', 'tennis ball'],
+  football:   ['football', 'soccer', 'boot', 'shin', 'goalkeeper', 'jersey', 'studs'],
+  soccer:     ['football', 'soccer', 'boot', 'shin', 'goalkeeper'],
+  badminton:  ['racket', 'racquet', 'shuttle', 'shuttlecock', 'string', 'grip'],
+  tennis:     ['racket', 'racquet', 'tennis ball', 'string', 'grip'],
+  hockey:     ['hockey', 'stick', 'puck', 'shin'],
+  volleyball: ['volleyball', 'net', 'knee pad'],
+  basketball: ['basketball', 'hoop', 'ring'],
+  gym:        ['dumbbell', 'barbell', 'plate', 'kettlebell', 'gym glove', 'belt', 'band', 'mat', 'whey', 'protein', 'supplement', 'shaker'],
+  fitness:    ['dumbbell', 'kettlebell', 'band', 'mat', 'skipping', 'rope', 'whey', 'protein', 'supplement', 'shaker'],
+  workout:    ['dumbbell', 'kettlebell', 'band', 'mat', 'whey', 'protein', 'shaker'],
+  protein:    ['whey', 'protein', 'isolate', 'mass gainer', 'gainer', 'casein', 'supplement'],
+  whey:       ['whey', 'protein', 'isolate', 'supplement'],
+  supplement: ['whey', 'protein', 'creatine', 'bcaa', 'pre-workout', 'preworkout', 'multivitamin', 'omega', 'gainer', 'electrolyte'],
+  nutrition:  ['whey', 'protein', 'creatine', 'bcaa', 'multivitamin', 'gainer', 'supplement'],
+  shoe:       ['shoe', 'spike', 'boot', 'sneaker', 'footwear'],
+  apparel:    ['jersey', 't-shirt', 'tshirt', 'shirt', 'track', 'short', 'cap', 'sock', 'clothing', 'wear'],
+  clothing:   ['jersey', 't-shirt', 'tshirt', 'shirt', 'track', 'short', 'cap', 'sock', 'wear'],
+  bag:        ['bag', 'kit bag', 'backpack', 'duffel']
+};
+
+function wordStart(hay, word) {
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}`).test(hay);
+}
+
+function singular(t) { return t.length > 3 ? t.replace(/(es|s)$/, '') : t; }
+
+// Related words for a typed term — handles plurals ("bats" → "bat") and
+// partial typing ("crick" → cricket's gear). Returns { key, words }.
+function relatedFor(t) {
+  const key = Object.keys(RELATED_TERMS).find(k =>
+    k === t || k === singular(t) || (t.length >= 4 && k.startsWith(t))
+  );
+  return key ? { key, words: RELATED_TERMS[key] } : { key: null, words: [] };
+}
+
+// A sport name in a product's own name marks it as THAT sport's gear — so
+// "cricket" (which relates to "ball") doesn't also pull in "Nivia Football".
+const SPORT_WORDS = ['cricket', 'football', 'soccer', 'badminton', 'tennis', 'hockey', 'volleyball', 'basketball'];
+function belongsToOtherSport(name, key, words) {
+  return SPORT_WORDS.some(sp =>
+    sp !== key &&
+    name.includes(sp) &&
+    !words.some(w => w.includes(sp))   // cricket's own "tennis ball" is still fine
+  );
+}
+
+// Whole word in the name ("bat" / "bats" in "Willow Bat") — ranks above a
+// mere prefix ("Batting Gloves") so the actual bat comes first.
+function wholeWord(name, s) {
+  const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}(s|es)?([^a-z0-9]|$)`).test(name);
+}
+
 // Returns { score, matched } — matched is how many of the search terms
 // this item satisfied, so rankResults can prefer items matching every
 // word but still fall back to partial matches instead of showing nothing.
 function matchScore(item, terms) {
-  const name = item.name.toLowerCase();
-  const hay = `${name} ${categoryName(item.category).toLowerCase()} ${(item.description || '').toLowerCase()}`;
+  const name = (item.name || '').toLowerCase();
+  const optionText = Array.isArray(item.options)
+    ? item.options.map(o => `${o.name || ''} ${(o.values || []).join(' ')}`).join(' ')
+    : '';
+  const hay = `${name} ${categoryName(item.category).toLowerCase()} ${item.category || ''} ${(item.description || '').toLowerCase()} ${optionText.toLowerCase()}`;
   let score = 0;
   let matched = 0;
   for (const t of terms) {
     if (!t) continue;
-    if (name.startsWith(t)) { score += 5; matched++; }
-    else if (name.includes(t)) { score += 3; matched++; }
-    else if (hay.includes(t)) { score += 1; matched++; }
-    // singular/plural forgiveness: "bat" should also catch "bats" and
-    // vice versa, since shoppers rarely type the exact stored form.
-    else if (t.length > 2 && (hay.includes(t.replace(/s$/, '')) || hay.includes(t + 's'))) { score += 1; matched++; }
+    const s = singular(t);
+    if (wholeWord(name, s)) { score += 8; matched++; }
+    else if (name.startsWith(t)) { score += 5; matched++; }
+    else if (name.includes(t) || name.includes(s)) { score += 4; matched++; }
+    else if (hay.includes(t) || hay.includes(s)) { score += 2; matched++; }
+    else {
+      // Sport/theme keyword: "cricket" matches anything that's a bat,
+      // ball, stumps, gloves, pads… even without the word "cricket".
+      // Word-start match so "ball" doesn't match inside "football".
+      const { key, words } = relatedFor(t);
+      if (words.length && !belongsToOtherSport(name, key, words) && words.some(r => wordStart(hay, r))) {
+        score += 1; matched++;
+      }
+    }
   }
   return { score, matched };
 }
@@ -174,13 +260,24 @@ function setupSearch() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// IMPORTANT: this module imports categories.js, which uses a top-level
+// `await` (Firestore fetch). That delays this module's body until AFTER the
+// browser has already fired DOMContentLoaded — so a plain
+// addEventListener('DOMContentLoaded', …) here would never run, leaving
+// search dead, the category menu blank and the Sign In link missing.
+// Run immediately if the DOM is already parsed, otherwise wait for it.
+function initNav() {
   buildMegaMenu();
   setupSearch();
   buildAccountNav();
   updateWishlistBadge();
   lockScrollWhileMenuOpen();
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNav);
+} else {
+  initNav();
+}
 window.addEventListener('sandragon:customer-updated', buildAccountNav);
 window.addEventListener('sandragon:wishlist-updated', updateWishlistBadge);
 

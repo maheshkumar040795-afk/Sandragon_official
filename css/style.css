@@ -188,6 +188,7 @@ header.navbar{
 }
 .mega-menu-item:hover .mega-menu-icon{transform:scale(1.08)}
 .mega-menu-icon img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.mega-menu-empty{padding:26px 12px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.7}
 .mega-menu-all{
   display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-top:1px solid var(--border);
   color:var(--gold);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.5px;

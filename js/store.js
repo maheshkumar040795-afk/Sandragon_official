@@ -227,6 +227,17 @@ async function loadProducts() {
     renderToolbar();
     renderGrid();
     if (recentWrap) renderRecentlyViewed(recentWrap);
+
+    // Arriving from the nav search or a category link: the results sit
+    // below the full-height hero video, so bring them into view — otherwise
+    // it looks like the search "did nothing".
+    if (activeSearch || activeCategory) {
+      const target = bannerWrap && bannerWrap.style.display !== 'none' ? bannerWrap : (pillsWrap || grid);
+      setTimeout(() => {
+        const y = target.getBoundingClientRect().top + window.scrollY - 110; // clear the sticky header
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }, 150);
+    }
   } catch (err) {
     console.error(err);
     grid.innerHTML = `<div class="empty-state">Couldn't load products. Please refresh.</div>`;
