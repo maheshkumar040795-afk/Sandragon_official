@@ -1,4 +1,5 @@
 // SANDRAGON — localStorage "recently viewed" tracker.
+import { imgHtml } from "./img.js";
 // Item shape: { id, name, image, price }
 
 const KEY = 'sandragon_recently_viewed';
@@ -31,11 +32,11 @@ export function renderRecentlyViewed(container, excludeId = null) {
   if (!items.length) { container.innerHTML = ''; return false; }
 
   container.innerHTML = `
-    <h2 class="section-title">Recently Viewed</h2>
+    <h2 class="section-title">Recently viewed</h2>
     <div class="recent-strip">
       ${items.map(p => `
         <a href="product.html?id=${p.id}" class="recent-card">
-          <div class="recent-img"><img src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy"></div>
+          <div class="recent-img">${imgHtml(p.image, { alt: p.name, widths: [300], sizes: '150px' })}</div>
           <div class="recent-name">${escapeHtml(p.name)}</div>
           <div class="recent-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
         </a>

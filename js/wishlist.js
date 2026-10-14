@@ -1,6 +1,7 @@
 import { getWishlist, removeFromWishlist } from "./wishlist-store.js";
 import { addToCart } from "./cart-store.js";
 import { toast } from "./toast.js";
+import { imgHtml } from "./img.js";
 
 const grid = document.getElementById('wishlistGrid');
 
@@ -19,7 +20,7 @@ function render() {
       <button type="button" class="wishlist-heart active" data-remove="${p.id}" aria-label="Remove from wishlist">
         <i class="fas fa-heart"></i>
       </button>
-      <a href="product.html?id=${p.id}" class="img-wrap"><img src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy"></a>
+      <a href="product.html?id=${p.id}" class="img-wrap">${imgHtml(p.image, { alt: p.name, widths: [300, 450, 600], sizes: '(max-width: 600px) 48vw, 280px' })}</a>
       <div class="info">
         <a href="product.html?id=${p.id}" class="name">${escapeHtml(p.name)}</a>
         <div class="price">₹${Number(p.price).toLocaleString('en-IN')}</div>

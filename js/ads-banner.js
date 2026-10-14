@@ -3,6 +3,8 @@
 // Independent of the hero carousel — this is a slim, dismissible, rotating
 // strip meant to be droppable onto any page via <div id="adsStrip"></div>.
 import { getActiveAds } from "./ads-store.js";
+import { swr } from "./data-cache.js";
+import { cld, IMG_FALLBACK } from "./img.js";
 
 const AUTO_MS = 6000;
 const DISMISS_KEY = 'sandragon_ads_dismissed'; // sessionStorage — reappears next visit
@@ -15,16 +17,14 @@ function isExternal(url) {
   return /^https?:\/\//i.test(url);
 }
 
-async function initAdsStrip() {
-  const root = document.getElementById('adsStrip');
-  if (!root) return;
-  if (sessionStorage.getItem(DISMISS_KEY) === '1') return;
+let timer = null;
 
-  const ads = await getActiveAds();
+function renderAds(root, ads) {
+  clearInterval(timer);
   if (!ads.length) { root.style.display = 'none'; return; }
+  root.style.display = '';
 
   let current = 0;
-  let timer = null;
 
   root.innerHTML = `
     <div class="ads-strip-inner">
@@ -34,7 +34,7 @@ async function initAdsStrip() {
           <a href="${escapeHtml(ad.linkUrl || '#')}"
              ${ad.linkUrl && isExternal(ad.linkUrl) ? 'target="_blank" rel="noopener"' : ''}
              class="ads-strip-slide ${i === 0 ? 'active' : ''}" data-i="${i}">
-            <img src="${escapeHtml(ad.imageUrl)}" alt="${escapeHtml(ad.title || 'Advertisement')}" loading="${i === 0 ? 'eager' : 'lazy'}">
+            <img src="${escapeHtml(cld(ad.imageUrl, 1500))}" data-orig="${escapeHtml(ad.imageUrl)}" onerror="${IMG_FALLBACK}" decoding="async" alt="${escapeHtml(ad.title || 'Advertisement')}" loading="${i === 0 ? 'eager' : 'lazy'}">
           </a>
         `).join('')}
       </div>
@@ -73,4 +73,12 @@ async function initAdsStrip() {
   restartAuto();
 }
 
-document.addEventListener('DOMContentLoaded', initAdsStrip);
+function initAdsStrip() {
+  const root = document.getElementById('adsStrip');
+  if (!root) return;
+  if (sessionStorage.getItem(DISMISS_KEY) === '1') return;
+  swr('ads', getActiveAds, (ads) => renderAds(root, ads)).catch(() => {});
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAdsStrip);
+else initAdsStrip();

@@ -1,4 +1,6 @@
 import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-init.js";
+import { getCachedProduct, getCachedProducts } from "./products-store.js";
+import { cld, imgHtml } from "./img.js";
 import { addToCart } from "./cart-store.js";
 import { categoryName } from "./categories.js";
 import { ensureCustomer } from "./account-gate.js";
@@ -33,22 +35,43 @@ function normalizeOptions(p) {
   return legacy;
 }
 
+// Fields that change what the page shows. If a fresh Firestore read differs
+// from the cached copy on any of these, the page re-renders with fresh data.
+function visibleSignature(p) {
+  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active]);
+}
+
 async function loadProduct() {
   if (!productId) {
     container.innerHTML = `<div class="empty-state">Product not found.</div>`;
     return;
   }
+
+  // Instant paint: the shop grid already cached this product, so show it
+  // right away instead of waiting for Firestore, then confirm in the background.
+  const cached = getCachedProduct(productId);
+  if (cached) {
+    productData = cached.data;
+    render();
+  }
+
   try {
     const snap = await getDoc(doc(db, 'products', productId));
     if (!snap.exists()) {
       container.innerHTML = `<div class="empty-state">This product is no longer available.</div>`;
+      relatedSection && (relatedSection.innerHTML = '');
       return;
     }
-    productData = snap.data();
-    render();
+    const fresh = snap.data();
+    if (!productData || visibleSignature(fresh) !== visibleSignature(productData)) {
+      productData = fresh;
+      render();
+    } else {
+      productData = fresh;
+    }
   } catch (err) {
     console.error(err);
-    container.innerHTML = `<div class="empty-state">Couldn't load this product.</div>`;
+    if (!productData) container.innerHTML = `<div class="empty-state">Couldn't load this product. <a href="" class="gold">Try again</a></div>`;
   }
 }
 
@@ -67,18 +90,18 @@ function render() {
     <div class="pd-wrap">
       <div class="pd-gallery">
         <div class="main-img">
-          <img id="mainImg" src="${images[0]}" alt="${escapeHtml(p.name)}" style="cursor:zoom-in">
+          ${imgHtml(images[0], { alt: p.name, widths: [480, 800, 1200], sizes: '(max-width: 768px) 100vw, 560px', priority: true, extra: 'id="mainImg" style="cursor:zoom-in"' })}
           <button type="button" class="wishlist-heart pd-heart ${wished ? 'active' : ''}" id="pdWishBtn" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
             <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
           </button>
           <button type="button" class="zoom-hint-btn" id="pdZoomBtn" aria-label="View full size"><i class="fas fa-expand"></i></button>
         </div>
         <div class="thumb-row" id="thumbRow">
-          ${images.map((img, i) => `<img src="${img}" data-i="${i}" class="${i === 0 ? 'active' : ''}">`).join('')}
+          ${images.length > 1 ? images.map((img, i) => `<button type="button" class="thumb ${i === 0 ? 'active' : ''}" data-i="${i}" aria-label="Show photo ${i + 1}">${imgHtml(img, { widths: [160], sizes: '80px' })}</button>`).join('') : ''}
         </div>
       </div>
       <div class="pd-info">
-        ${p.category ? `<div class="cat-tag" style="position:static;display:inline-flex;margin-bottom:12px">${categoryName(p.category) || p.category}</div>` : ''}
+        ${p.category ? `<a class="pd-cat" id="pdCat" href="index.html?category=${encodeURIComponent(p.category)}">${escapeHtml(categoryName(p.category) || p.category)}</a>` : ''}
         <h1>${escapeHtml(p.name)}</h1>
         ${starsHtml(avg, Number(p.ratingCount) || 0, 'md')}
         <div class="pd-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
@@ -100,7 +123,7 @@ function render() {
             <button class="qty-btn" id="qtyPlus">+</button>
           </div>
           <div class="stock-note ${!inStock ? 'out' : lowStock ? 'low' : ''}" id="stockNote">
-            ${!inStock ? 'Out of stock' : lowStock ? `Only ${stock} left — order soon!` : (stock !== undefined && stock !== null ? `${stock} in stock` : '')}
+            ${!inStock ? 'Out of stock' : lowStock ? `Only ${stock} left. Order soon!` : (stock !== undefined && stock !== null ? `${stock} in stock` : '')}
           </div>
         </div>
 
@@ -115,19 +138,26 @@ function render() {
 
   // Gallery thumbnail switching
   let currentImgIndex = 0;
-  document.querySelectorAll('#thumbRow img').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('#thumbRow img').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      document.getElementById('mainImg').src = t.src;
-      currentImgIndex = +t.dataset.i;
-    });
+  const mainImg = document.getElementById('mainImg');
+  function showImage(i) {
+    currentImgIndex = i;
+    document.querySelectorAll('#thumbRow .thumb').forEach(x => x.classList.toggle('active', +x.dataset.i === i));
+    mainImg.classList.add('swapping');
+    const url = images[i];
+    mainImg.dataset.orig = url;
+    mainImg.srcset = /res\.cloudinary\.com/.test(url) ? [480, 800, 1200].map(w => `${cld(url, w)} ${w}w`).join(', ') : '';
+    mainImg.src = cld(url, 1200);
+    const done = () => mainImg.classList.remove('swapping');
+    if (mainImg.complete) requestAnimationFrame(done); else mainImg.addEventListener('load', done, { once: true });
+  }
+  document.querySelectorAll('#thumbRow .thumb').forEach(t => {
+    t.addEventListener('click', () => showImage(+t.dataset.i));
   });
 
   // Click the main image (or the zoom hint) to open the full-screen,
-  // zoomable lightbox — matches the Flipkart-style viewer requested.
-  const openGalleryLightbox = () => openLightbox(images, currentImgIndex);
-  document.getElementById('mainImg').addEventListener('click', openGalleryLightbox);
+  // zoomable lightbox. Sized copies (not multi-MB originals) keep it quick.
+  const openGalleryLightbox = () => openLightbox(images.map(u => cld(u, 2000)), currentImgIndex);
+  mainImg.addEventListener('click', openGalleryLightbox);
   document.getElementById('pdZoomBtn').addEventListener('click', openGalleryLightbox);
 
   // Wishlist
@@ -195,50 +225,69 @@ function render() {
     });
   });
 
-  trackView({ id: productId, name: p.name, image: images[0], price: Number(p.price) });
+  // When the page is being prerendered in the background (the shopper only
+  // hovered a link), don't record a "view" until they actually open it.
+  const recordView = () => trackView({ id: productId, name: p.name, image: images[0], price: Number(p.price) });
+  if (document.prerendering) {
+    document.addEventListener('prerenderingchange', recordView, { once: true });
+  } else {
+    recordView();
+  }
   if (recentSection) renderRecentlyViewed(recentSection, productId);
 
   loadRelated(p);
-  loadReviews();
+  if (!reviewsLoaded) { reviewsLoaded = true; loadReviews(); }
 }
+
+function relatedCardHtml(rid, rp) {
+  const img = (rp.images && rp.images[0]) || 'assets/logo.jpeg';
+  const rAvg = ratingAvg(rp);
+  return `
+    <div class="img-wrap">
+      ${imgHtml(img, { alt: rp.name, widths: [300, 450, 600], sizes: '(max-width: 600px) 48vw, 280px', cls: 'img-main' })}
+      <div class="card-tags">${rp.category ? `<span class="cat-tag">${escapeHtml(categoryName(rp.category) || rp.category)}</span>` : ''}</div>
+    </div>
+    <div class="info">
+      <div class="name">${escapeHtml(rp.name)}</div>
+      ${starsHtml(rAvg, Number(rp.ratingCount) || 0, 'sm')}
+      <div class="price">₹${Number(rp.price).toLocaleString('en-IN')}</div>
+    </div>`;
+}
+
+let relatedRenderedFor = null;
+let reviewsLoaded = false;
 
 async function loadRelated(p) {
   if (!relatedSection) return;
   if (!p.category) { relatedSection.innerHTML = ''; return; }
+  if (relatedRenderedFor === p.category) return; // a re-render with fresh data doesn't need a second query
   try {
-    const q = query(
-      collection(db, 'products'),
-      where('active', '==', true),
-      where('category', '==', p.category)
-    );
-    const snap = await getDocs(q);
-    const items = snap.docs
-      .filter(d => d.id !== productId)
-      .slice(0, 4);
+    // Same-category products straight from the cached catalog when we have
+    // it (no extra Firestore read); otherwise one query as before.
+    let items;
+    const cachedList = getCachedProducts();
+    if (cachedList) {
+      items = cachedList.filter(x => x.data.category === p.category && x.id !== productId);
+    } else {
+      const q = query(collection(db, 'products'), where('active', '==', true), where('category', '==', p.category));
+      const snap = await getDocs(q);
+      items = snap.docs.filter(d => d.id !== productId).map(d => ({ id: d.id, data: d.data() }));
+    }
+    items = items.slice(0, 4);
+    relatedRenderedFor = p.category;
 
     if (!items.length) { relatedSection.innerHTML = ''; return; }
 
     relatedSection.innerHTML = `
-      <h2 class="section-title">You May Also Like</h2>
-      <div class="product-grid" id="relatedGrid"></div>
+      <h2 class="section-title">You may also like</h2>
+      <div class="product-grid related-grid" id="relatedGrid"></div>
     `;
     const relatedGrid = document.getElementById('relatedGrid');
-    items.forEach(docSnap => {
-      const rp = docSnap.data();
-      const rid = docSnap.id;
-      const img = (rp.images && rp.images[0]) || 'assets/logo.jpeg';
-      const rAvg = ratingAvg(rp);
+    items.forEach(({ id: rid, data: rp }) => {
       const card = document.createElement('a');
       card.href = `product.html?id=${rid}`;
       card.className = 'product-card';
-      card.innerHTML = `
-        ${rp.category ? `<span class="cat-tag">${escapeHtml(categoryName(rp.category) || rp.category)}</span>` : ''}
-        <div class="img-wrap"><img src="${img}" alt="${escapeHtml(rp.name)}" loading="lazy"></div>
-        <div class="info">
-          <div class="name">${escapeHtml(rp.name)}</div>
-          ${starsHtml(rAvg, Number(rp.ratingCount) || 0, 'sm')}
-          <div class="price">₹${Number(rp.price).toLocaleString('en-IN')}</div>
-        </div>`;
+      card.innerHTML = relatedCardHtml(rid, rp);
       relatedGrid.appendChild(card);
     });
   } catch (err) {
@@ -337,7 +386,7 @@ async function renderReviewsList() {
   try {
     const reviews = await fetchReviews(productId);
     if (!reviews.length) {
-      listEl.innerHTML = `<div class="empty-state">No reviews yet — be the first to share your experience!</div>`;
+      listEl.innerHTML = `<div class="empty-state">No reviews yet. Be the first to share your experience.</div>`;
       return;
     }
     listEl.innerHTML = reviews.map(reviewItemHtml).join('');
@@ -346,5 +395,11 @@ async function renderReviewsList() {
     listEl.innerHTML = `<div class="empty-state">Couldn't load reviews right now.</div>`;
   }
 }
+
+// Categories refresh in the background; keep the category label current.
+window.addEventListener('sandragon:categories-updated', () => {
+  const el = document.getElementById('pdCat');
+  if (el && productData?.category) el.textContent = categoryName(productData.category) || productData.category;
+});
 
 loadProduct();

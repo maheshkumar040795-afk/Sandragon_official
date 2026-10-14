@@ -46,7 +46,11 @@ export function wishlistCount() {
 
 export function updateWishlistBadge() {
   const el = document.getElementById('wishlistCount');
-  if (el) el.textContent = wishlistCount();
+  if (el) {
+    const n = wishlistCount();
+    el.textContent = n;
+    el.dataset.count = String(n); // CSS hides the bubble at 0
+  }
 }
 
 updateWishlistBadge();

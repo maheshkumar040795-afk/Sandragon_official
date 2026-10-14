@@ -1,4 +1,4 @@
-import { auth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "../../js/firebase-init.js";
+import { auth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "../../js/firebase-auth.js";
 import { adminEmails } from "../../js/config.js";
 
 const loginBtn = document.getElementById('loginBtn');

@@ -1,8 +1,9 @@
 // SANDRAGON — shared navbar features (search + category mega-menu).
 // Loaded on every page. Looks for #siteSearchInput / #searchDropdown and
 // #categoryMegaMenu in the page's markup and wires them up if present.
-import { db, collection, getDocs, query, where } from "./firebase-init.js";
-import { CATEGORIES, categoryName, refreshCategories } from "./categories.js";
+import { CATEGORIES, categoryName, categoriesReady } from "./categories.js";
+import { getCachedProducts, fetchActiveProducts } from "./products-store.js";
+import { cld, IMG_FALLBACK } from "./img.js";
 import { categoryVisualHtml } from "./category-visual.js";
 import { getCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
@@ -35,8 +36,10 @@ function buildMegaMenu() {
   // before Firestore answered), try once more and re-render — never leave
   // the menu as a blank box.
   if (!CATEGORIES.length) {
-    refreshCategories().then(() => renderMegaMenuItems(menu));
+    categoriesReady.then(() => renderMegaMenuItems(menu));
   }
+  // Categories refresh in the background; re-render if they changed.
+  window.addEventListener('sandragon:categories-updated', () => renderMegaMenuItems(menu));
 
   const wrap = menu.closest('.nav-cat-wrap');
   if (!wrap) return;
@@ -55,31 +58,32 @@ function buildMegaMenu() {
 let productIndex = null; // lazy-loaded once per page, cached in module scope
 let loadingPromise = null;
 
+function toIndex(list) {
+  return list.map(({ id, data: p }) => ({
+    id,
+    name: p.name || '',
+    price: Number(p.price) || 0,
+    image: (p.images && p.images[0]) || 'assets/logo.jpeg',
+    category: p.category || '',
+    description: p.description || '',
+    options: Array.isArray(p.options) ? p.options : []
+  }));
+}
+
+// Uses the shared cached catalog when there is one, so typing in the search
+// box shows results instantly instead of waiting on Firestore. Falls back to
+// a live fetch (once per page) when nothing is cached yet.
 function loadProductIndex() {
   if (productIndex) return Promise.resolve(productIndex);
+  const cached = getCachedProducts();
+  if (cached) {
+    productIndex = toIndex(cached);
+    return Promise.resolve(productIndex);
+  }
   if (loadingPromise) return loadingPromise;
-  loadingPromise = (async () => {
-    try {
-      const q = query(collection(db, 'products'), where('active', '==', true));
-      const snap = await getDocs(q);
-      productIndex = snap.docs.map(d => {
-        const p = d.data();
-        return {
-          id: d.id,
-          name: p.name || '',
-          price: Number(p.price) || 0,
-          image: (p.images && p.images[0]) || 'assets/logo.jpeg',
-          category: p.category || '',
-          description: p.description || '',
-          options: Array.isArray(p.options) ? p.options : []
-        };
-      });
-    } catch (err) {
-      console.error('Search index load failed', err);
-      productIndex = [];
-    }
-    return productIndex;
-  })();
+  loadingPromise = fetchActiveProducts()
+    .then(list => (productIndex = toIndex(list)))
+    .catch(err => { console.error('Search index load failed', err); return (productIndex = []); });
   return loadingPromise;
 }
 
@@ -206,7 +210,7 @@ function renderDropdown(dropdown, results, rawQuery) {
   dropdown.innerHTML = `
     ${top.map(p => `
       <a href="product.html?id=${p.id}" class="search-result">
-        <img src="${p.image}" alt="">
+        <img src="${cld(p.image, 96)}" data-orig="${p.image}" onerror="${IMG_FALLBACK}" alt="" loading="lazy" decoding="async">
         <div class="sr-info">
           <div class="sr-name">${escapeHtml(p.name)}</div>
           <div class="sr-meta">${p.category ? escapeHtml(categoryName(p.category)) + ' · ' : ''}₹${p.price.toLocaleString('en-IN')}</div>
@@ -260,12 +264,9 @@ function setupSearch() {
   });
 }
 
-// IMPORTANT: this module imports categories.js, which uses a top-level
-// `await` (Firestore fetch). That delays this module's body until AFTER the
-// browser has already fired DOMContentLoaded — so a plain
-// addEventListener('DOMContentLoaded', …) here would never run, leaving
-// search dead, the category menu blank and the Sign In link missing.
-// Run immediately if the DOM is already parsed, otherwise wait for it.
+// categories.js can still wait on Firestore (first visit / admin pages),
+// which may delay this module until after DOMContentLoaded has fired, so
+// run immediately if the DOM is already parsed, otherwise wait for it.
 function initNav() {
   buildMegaMenu();
   setupSearch();
