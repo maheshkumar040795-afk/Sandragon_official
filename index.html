@@ -4,12 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SANDRAGON | Premium Store</title>
-<meta name="description" content="SANDRAGON — official online store.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="css/style.css?v=20260924b">
+<meta name="description" content="SANDRAGON official online store: cricket and sports equipment, fitness gear and supplements, delivered across India.">
+<meta name="theme-color" content="#0b0b0b">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://res.cloudinary.com">
+<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js">
+<link rel="modulepreload" href="js/firebase-init.js">
+<link rel="stylesheet" href="css/style.css?v=20261014">
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="vendor/fontawesome/css/all.min.css"></noscript>
 <link rel="icon" href="assets/logo.jpeg">
+<script type="speculationrules">
+{
+  "prerender": [{ "where": { "and": [
+      { "selector_matches": "a[href^=\"product.html\"]" },
+      { "not": { "selector_matches": "[target]" } }
+    ] }, "eagerness": "moderate" }],
+  "prefetch": [{ "where": { "and": [
+      { "selector_matches": "a[href$=\".html\"], a[href^=\"index.html?\"], a[href^=\"terms.html#\"]" },
+      { "not": { "selector_matches": "a[href^=\"admin\"], a[href^=\"product.html\"], [target]" } }
+    ] }, "eagerness": "moderate" }]
+}
+</script>
 </head>
 <body class="light-theme">
 
@@ -31,20 +51,21 @@
       </div>
       <a href="order-history.html">Order History</a>
       <a href="wishlist.html" class="cart-icon wishlist-nav-icon"><i class="fas fa-heart"></i> Wishlist
-        <span class="cart-count" id="wishlistCount">0</span>
+        <span class="cart-count" id="wishlistCount" data-count="0">0</span>
       </a>
       <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
-        <span class="cart-count" id="cartCount">0</span>
+        <span class="cart-count" id="cartCount" data-count="0">0</span>
       </a>
       <div class="nav-account" id="navAccount"></div>
       <a href="admin/login.html" title="Admin" style="opacity:.35"><i class="fas fa-lock"></i></a>
     </nav>
-    <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Menu" aria-controls="navLinks"><i class="fas fa-bars"></i></button>
   </div>
 </header>
 
 <section class="hero">
-  <video autoplay muted loop playsinline class="hero-video">
+  <video autoplay muted loop playsinline preload="auto" class="hero-video"
+    poster="https://res.cloudinary.com/lfgnusmd/video/upload/so_0,f_auto,q_auto,w_1600/v1790062572/Sandragon_Landing_video_processed_processed_b5tz5x.jpg">
     <source src="https://res.cloudinary.com/lfgnusmd/video/upload/v1790062572/Sandragon_Landing_video_processed_processed_b5tz5x.mp4" type="video/mp4">
   </video>
   <div class="hero-overlay"></div>
@@ -63,8 +84,15 @@
   <div class="banner-carousel" id="bannerCarousel"></div>
   <div class="search-results-banner" id="searchBanner" style="display:none"></div>
   <div class="shop-toolbar" id="shopToolbar"></div>
-  <div class="product-grid" id="productGrid">
-    <div class="spinner"></div>
+  <div class="product-grid" id="productGrid" aria-busy="true" aria-live="polite">
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
+    <div class="product-card skeleton-card" aria-hidden="true"><div class="img-wrap sk"></div><div class="info"><div class="sk sk-line"></div><div class="sk sk-line short"></div></div></div>
   </div>
 </div>
 
@@ -76,7 +104,7 @@
       <div class="brand" style="margin-bottom:10px">
         <img src="assets/logo.jpeg" alt="SANDRAGON" style="height:32px"><span class="brand-word">SAN<span class="brand-d">D</span><span class="brand-tail">RAGON</span></span>
       </div>
-      <p class="footer-tag">Your one-stop store for cricket &amp; sports equipment, fitness supplements and everything in between — genuine gear, honest prices.</p>
+      <p class="footer-tag">Cricket and sports equipment, fitness gear and supplements. Genuine products at honest prices.</p>
       <div class="social">
         <a href="https://www.instagram.com/sandragonog" target="_blank" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
         <a href="https://wa.me/919791162430" target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
@@ -127,6 +155,6 @@ document.getElementById('hamburgerBtn').addEventListener('click', () => {
 <script type="module" src="js/banner-carousel.js"></script>
 <script type="module" src="js/ads-banner.js"></script>
 <script type="module" src="js/store.js"></script>
-<script src="js/premium.js?v=20260924b" defer></script>
+<script src="js/premium.js?v=20261014" defer></script>
 </body>
 </html>

@@ -1,4 +1,3 @@
-import { db, collection, getDocs, query, where } from "./firebase-init.js";
 import { CATEGORIES, categoryName } from "./categories.js";
 import { categoryVisualHtml } from "./category-visual.js";
 import { rankResults } from "./nav-features.js";
@@ -6,6 +5,9 @@ import { toggleWishlist, isWishlisted } from "./wishlist-store.js";
 import { ratingAvg, starsHtml } from "./reviews.js";
 import { renderRecentlyViewed } from "./recently-viewed.js";
 import { toast } from "./toast.js";
+import { watchProducts } from "./products-store.js";
+import { tsMillis } from "./data-cache.js";
+import { imgHtml } from "./img.js";
 import "./cart-store.js";
 
 const grid = document.getElementById('productGrid');
@@ -19,15 +21,18 @@ let activeCategory = new URLSearchParams(window.location.search).get('category')
 let activeSearch = new URLSearchParams(window.location.search).get('search') || '';
 let activeSort = 'newest';
 let inStockOnly = false;
+let toolbarReady = false;
+let scrolledToResults = false;
 
 const NEW_WINDOW_DAYS = 14;
+const CARD_SIZES = '(max-width: 600px) 48vw, (max-width: 1000px) 31vw, 280px';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 }
 
 function isNewProduct(p) {
-  const ms = p.createdAt?.toMillis ? p.createdAt.toMillis() : 0;
+  const ms = tsMillis(p.createdAt);
   if (!ms) return false;
   return (Date.now() - ms) < NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
@@ -40,21 +45,30 @@ function stockBadge(p) {
   return '';
 }
 
-function cardHtml(p, id) {
-  const img = (p.images && p.images[0]) || 'assets/logo.jpeg';
+function cardHtml(p, id, index) {
+  const images = (p.images && p.images.length) ? p.images : ['assets/logo.jpeg'];
   const tag = p.category ? `<span class="cat-tag">${escapeHtml(categoryName(p.category) || p.category)}</span>` : '';
   const newTag = isNewProduct(p) ? `<span class="new-tag">New</span>` : '';
   const wished = isWishlisted(id);
   const avg = ratingAvg(p);
   const soldOut = p.stock !== undefined && p.stock !== null && Number(p.stock) <= 0;
+  // The first row is above the fold on most screens: load those eagerly so
+  // the shop grid paints fast, lazy-load everything below.
+  const priority = index < 4;
+  const main = imgHtml(images[0], { alt: p.name, widths: [300, 450, 600], sizes: CARD_SIZES, cls: 'img-main', priority: index < 2, loading: priority ? 'eager' : 'lazy' });
+  // A second photo (if the product has one) crossfades in on hover, the
+  // way most fashion and sports stores preview the back or detail shot.
+  const alt = images[1]
+    ? imgHtml(images[1], { alt: '', widths: [300, 450, 600], sizes: CARD_SIZES, cls: 'img-alt', loading: 'lazy', extra: 'aria-hidden="true"' })
+    : '';
   return `
-    ${tag}
-    ${newTag}
-    <button type="button" class="wishlist-heart ${wished ? 'active' : ''}" data-wish="${id}" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
-      <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
-    </button>
-    <div class="img-wrap">
-      <img src="${img}" alt="${escapeHtml(p.name)}" loading="lazy">
+    <div class="img-wrap${images[1] ? ' has-alt' : ''}">
+      ${main}
+      ${alt}
+      <div class="card-tags">${tag}${newTag}</div>
+      <button type="button" class="wishlist-heart ${wished ? 'active' : ''}" data-wish="${id}" aria-label="${wished ? 'Remove from' : 'Add to'} wishlist">
+        <i class="fa-heart ${wished ? 'fas' : 'far'}"></i>
+      </button>
       ${soldOut ? '<div class="sold-out-overlay">Sold Out</div>' : ''}
     </div>
     <div class="info">
@@ -79,7 +93,7 @@ function sortItems(items) {
   }
 }
 
-function renderGrid() {
+function renderGrid({ instant = false } = {}) {
   let items = allProducts;
 
   if (activeSearch) {
@@ -102,7 +116,7 @@ function renderGrid() {
       document.getElementById('clearSearchLink')?.addEventListener('click', () => {
         activeSearch = '';
         updateUrl();
-        renderGrid();
+        renderGrid({ instant: true });
       });
     } else {
       bannerWrap.style.display = 'none';
@@ -110,34 +124,49 @@ function renderGrid() {
     }
   }
 
+  grid.setAttribute('aria-busy', 'false');
+
   if (!items.length) {
-    grid.innerHTML = `<div class="empty-state">No products found${activeCategory ? ' in this category' : ''}${activeSearch ? ' for your search' : ''}. Try a different filter!</div>`;
+    grid.innerHTML = `<div class="empty-state">
+      <i class="fas fa-magnifying-glass"></i>
+      <p>No products found${activeCategory ? ' in this category' : ''}${activeSearch ? ' for your search' : ''}.</p>
+      <button type="button" class="btn small outline" id="resetFiltersBtn">Show all products</button>
+    </div>`;
+    document.getElementById('resetFiltersBtn')?.addEventListener('click', () => {
+      activeCategory = ''; activeSearch = ''; inStockOnly = false;
+      const chk = document.getElementById('inStockOnlyChk'); if (chk) chk.checked = false;
+      updateUrl(); renderPills(); renderGrid({ instant: true });
+    });
     return;
   }
 
-  grid.innerHTML = '';
-  items.forEach(({ id, data: p }) => {
+  // Build off-DOM and swap in one go: a single layout instead of one per card.
+  const frag = document.createDocumentFragment();
+  items.forEach(({ id, data: p }, i) => {
     const card = document.createElement('a');
     card.href = `product.html?id=${id}`;
-    card.className = 'product-card';
-    card.innerHTML = cardHtml(p, id);
-    grid.appendChild(card);
+    card.className = 'product-card' + (instant ? ' in-view' : '');
+    card.style.setProperty('--i', String(i % 8));
+    card.innerHTML = cardHtml(p, id, i);
+    frag.appendChild(card);
   });
-
-  grid.querySelectorAll('[data-wish]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const id = btn.dataset.wish;
-      const p = allProducts.find(x => x.id === id)?.data;
-      if (!p) return;
-      const added = toggleWishlist({ id, name: p.name, image: (p.images && p.images[0]) || 'assets/logo.jpeg', price: Number(p.price) });
-      btn.classList.toggle('active', added);
-      btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
-      toast(added ? `Added "${p.name}" to your wishlist` : `Removed "${p.name}" from your wishlist`, 'wishlist');
-    });
-  });
+  grid.replaceChildren(frag);
 }
+
+// One delegated listener for every wishlist heart, instead of one per card per render.
+grid.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-wish]');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = btn.dataset.wish;
+  const p = allProducts.find(x => x.id === id)?.data;
+  if (!p) return;
+  const added = toggleWishlist({ id, name: p.name, image: (p.images && p.images[0]) || 'assets/logo.jpeg', price: Number(p.price) });
+  btn.classList.toggle('active', added);
+  btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
+  toast(added ? `Added "${escapeHtml(p.name)}" to your wishlist` : `Removed "${escapeHtml(p.name)}" from your wishlist`, 'wishlist');
+});
 
 function updateUrl() {
   const params = new URLSearchParams();
@@ -152,13 +181,14 @@ function renderPills() {
   const presentCategoryIds = new Set(allProducts.map(x => x.data.category).filter(Boolean));
   const usable = CATEGORIES.filter(c => presentCategoryIds.has(c.id));
   if (!usable.length) { pillsWrap.style.display = 'none'; return; }
+  pillsWrap.style.display = '';
 
   pillsWrap.innerHTML = `
-    <div class="cat-pill ${!activeCategory ? 'active' : ''}" data-cat="">All</div>
+    <button type="button" class="cat-pill ${!activeCategory ? 'active' : ''}" data-cat="">All</button>
     ${usable.map(c => `
-      <div class="cat-pill ${activeCategory === c.id ? 'active' : ''}" data-cat="${c.id}">
-        ${categoryVisualHtml(c, 'cat-pill-icon')} ${c.name}
-      </div>
+      <button type="button" class="cat-pill ${activeCategory === c.id ? 'active' : ''}" data-cat="${c.id}">
+        ${categoryVisualHtml(c, 'cat-pill-icon')} ${escapeHtml(c.name)}
+      </button>
     `).join('')}
   `;
   pillsWrap.querySelectorAll('.cat-pill').forEach(pill => {
@@ -166,82 +196,83 @@ function renderPills() {
       activeCategory = pill.dataset.cat;
       pillsWrap.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
+      // Keep the chosen pill visible inside the horizontal scroller on phones.
+      pill.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
       updateUrl();
-      renderGrid();
+      renderGrid({ instant: true });
     });
   });
 }
 
 function renderToolbar() {
-  if (!toolbarWrap) return;
+  if (!toolbarWrap || toolbarReady) return;
+  toolbarReady = true;
   toolbarWrap.innerHTML = `
     <label class="stock-filter">
       <input type="checkbox" id="inStockOnlyChk">
       In stock only
     </label>
-    <select id="sortSelect" aria-label="Sort products">
-      <option value="newest">Newest First</option>
-      <option value="price-low">Price: Low to High</option>
-      <option value="price-high">Price: High to Low</option>
-      <option value="rating">Top Rated</option>
-    </select>
+    <label class="sort-wrap">
+      <span class="visually-hidden">Sort products</span>
+      <select id="sortSelect">
+        <option value="newest">Newest first</option>
+        <option value="price-low">Price: low to high</option>
+        <option value="price-high">Price: high to low</option>
+        <option value="rating">Top rated</option>
+      </select>
+    </label>
   `;
   document.getElementById('sortSelect').addEventListener('change', (e) => {
     activeSort = e.target.value;
-    renderGrid();
+    renderGrid({ instant: true });
   });
   document.getElementById('inStockOnlyChk').addEventListener('change', (e) => {
     inStockOnly = e.target.checked;
-    renderGrid();
+    renderGrid({ instant: true });
   });
 }
 
-async function loadProducts() {
-  try {
-    // No orderBy() in the Firestore query itself: pairing where() with
-    // orderBy() on a different field needs a composite index created in
-    // the Firebase console first, and this app shouldn't depend on that
-    // manual step. Sort client-side instead once the (small) product
-    // catalog is fetched.
-    const q = query(
-      collection(db, 'products'),
-      where('active', '==', true)
-    );
-    const snap = await getDocs(q);
-
-    if (snap.empty) {
-      grid.innerHTML = `<div class="empty-state">No products yet. Check back soon!</div>`;
-      if (pillsWrap) pillsWrap.style.display = 'none';
-      if (toolbarWrap) toolbarWrap.style.display = 'none';
-      return;
-    }
-
-    allProducts = snap.docs
-      .map(d => ({ id: d.id, data: d.data() }))
-      .sort((a, b) => {
-        const ta = a.data.createdAt?.toMillis ? a.data.createdAt.toMillis() : 0;
-        const tb = b.data.createdAt?.toMillis ? b.data.createdAt.toMillis() : 0;
-        return tb - ta;
-      });
-    renderPills();
-    renderToolbar();
-    renderGrid();
-    if (recentWrap) renderRecentlyViewed(recentWrap);
-
-    // Arriving from the nav search or a category link: the results sit
-    // below the full-height hero video, so bring them into view — otherwise
-    // it looks like the search "did nothing".
-    if (activeSearch || activeCategory) {
-      const target = bannerWrap && bannerWrap.style.display !== 'none' ? bannerWrap : (pillsWrap || grid);
-      setTimeout(() => {
-        const y = target.getBoundingClientRect().top + window.scrollY - 110; // clear the sticky header
-        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-      }, 150);
-    }
-  } catch (err) {
-    console.error(err);
-    grid.innerHTML = `<div class="empty-state">Couldn't load products. Please refresh.</div>`;
-  }
+function scrollToResultsOnce() {
+  // Arriving from the nav search or a category link: the results sit below
+  // the hero video, so bring them into view instead of looking like nothing happened.
+  if (scrolledToResults || !(activeSearch || activeCategory)) return;
+  scrolledToResults = true;
+  const target = bannerWrap && bannerWrap.style.display !== 'none' ? bannerWrap : (pillsWrap || grid);
+  requestAnimationFrame(() => {
+    const headerH = document.querySelector('header.navbar')?.offsetHeight || 80;
+    const y = target.getBoundingClientRect().top + window.scrollY - headerH - 16; // clear the sticky header
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  });
 }
 
-loadProducts();
+function showEmptyCatalog() {
+  grid.setAttribute('aria-busy', 'false');
+  grid.innerHTML = `<div class="empty-state"><i class="fas fa-box-open"></i><p>No products yet. Check back soon!</p></div>`;
+  if (pillsWrap) pillsWrap.style.display = 'none';
+  if (toolbarWrap) toolbarWrap.style.display = 'none';
+}
+
+watchProducts((list, { fromCache }) => {
+  if (!list.length) { showEmptyCatalog(); return; }
+  if (toolbarWrap) toolbarWrap.style.display = '';
+  allProducts = list;
+  renderPills();
+  renderToolbar();
+  // A cached render is instant (no fade); a refresh that replaces cards
+  // already on screen also swaps in place without re-animating.
+  renderGrid({ instant: fromCache || grid.querySelector('.product-card') !== null });
+  if (recentWrap) renderRecentlyViewed(recentWrap);
+  scrollToResultsOnce();
+}).catch(err => {
+  console.error(err);
+  grid.setAttribute('aria-busy', 'false');
+  grid.innerHTML = `<div class="empty-state"><i class="fas fa-wifi"></i><p>Couldn't load products.</p>
+    <button type="button" class="btn small outline" onclick="location.reload()">Try again</button></div>`;
+});
+
+// Categories now load in the background; refresh labels when they arrive.
+window.addEventListener('sandragon:categories-updated', () => {
+  if (!allProducts.length) return;
+  renderPills();
+  renderGrid({ instant: true });
+});

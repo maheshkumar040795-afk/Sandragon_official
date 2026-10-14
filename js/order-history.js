@@ -3,6 +3,7 @@ import { getCustomer } from "./customer-store.js";
 import { ensureCustomer } from "./account-gate.js";
 import { submitReview } from "./reviews.js";
 import { toast } from "./toast.js";
+import { cld, IMG_FALLBACK } from "./img.js";
 
 const STEPS = ['placed', 'confirmed', 'packed', 'shipped', 'delivered'];
 const STEP_LABELS = {
@@ -66,7 +67,7 @@ function itemLineHtml(i) {
   const variant = itemVariantLabel(i);
   return `
     <div class="order-item-line">
-      <img src="${i.image || 'assets/logo.jpeg'}" alt="${escapeHtml(i.name)}">
+      <img src="${cld(i.image || 'assets/logo.jpeg', 120)}" data-orig="${i.image || 'assets/logo.jpeg'}" onerror="${IMG_FALLBACK}" alt="${escapeHtml(i.name)}" loading="lazy" decoding="async">
       <div class="order-item-line-info">
         <div>${escapeHtml(i.name)}</div>
         <div class="meta">${variant ? escapeHtml(variant) + ' &nbsp;·&nbsp; ' : ''}Qty: ${i.qty} &nbsp;·&nbsp; ₹${Number(i.price).toLocaleString('en-IN')}</div>
@@ -181,7 +182,7 @@ function openReviewModal(id, o, customerName) {
           return `
           <div class="review-order-item" data-idx="${idx}" data-product="${i.productId}">
             <div class="order-item-line">
-              <img src="${i.image || 'assets/logo.jpeg'}" alt="${escapeHtml(i.name)}">
+              <img src="${cld(i.image || 'assets/logo.jpeg', 120)}" data-orig="${i.image || 'assets/logo.jpeg'}" onerror="${IMG_FALLBACK}" alt="${escapeHtml(i.name)}" loading="lazy" decoding="async">
               <div class="order-item-line-info"><div>${escapeHtml(i.name)}</div></div>
             </div>
             ${already ? `<div class="stock-note" style="color:var(--success)"><i class="fas fa-circle-check"></i> Reviewed — thank you!</div>` : `

@@ -4,10 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Product | SANDRAGON</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="css/style.css?v=20260924b">
+<meta name="theme-color" content="#0b0b0b">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://res.cloudinary.com">
+<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js">
+<link rel="modulepreload" href="js/firebase-init.js">
+<link rel="stylesheet" href="css/style.css?v=20261014">
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="vendor/fontawesome/css/all.min.css"></noscript>
 <link rel="icon" href="assets/logo.jpeg">
+<script type="speculationrules">
+{
+  "prerender": [{ "where": { "and": [
+      { "selector_matches": "a[href^=\"product.html\"]" },
+      { "not": { "selector_matches": "[target]" } }
+    ] }, "eagerness": "moderate" }],
+  "prefetch": [{ "where": { "and": [
+      { "selector_matches": "a[href$=\".html\"], a[href^=\"index.html?\"], a[href^=\"terms.html#\"]" },
+      { "not": { "selector_matches": "a[href^=\"admin\"], a[href^=\"product.html\"], [target]" } }
+    ] }, "eagerness": "moderate" }]
+}
+</script>
 </head>
 <body class="light-theme">
 
@@ -29,15 +50,15 @@
       </div>
       <a href="order-history.html">Order History</a>
       <a href="wishlist.html" class="cart-icon wishlist-nav-icon"><i class="fas fa-heart"></i> Wishlist
-        <span class="cart-count" id="wishlistCount">0</span>
+        <span class="cart-count" id="wishlistCount" data-count="0">0</span>
       </a>
       <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
-        <span class="cart-count" id="cartCount">0</span>
+        <span class="cart-count" id="cartCount" data-count="0">0</span>
       </a>
       <div class="nav-account" id="navAccount"></div>
       <a href="admin/login.html" title="Admin" style="opacity:.35"><i class="fas fa-lock"></i></a>
     </nav>
-    <button class="hamburger" id="hamburgerBtn"><i class="fas fa-bars"></i></button>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Menu" aria-controls="navLinks"><i class="fas fa-bars"></i></button>
   </div>
 </header>
 
@@ -46,7 +67,16 @@
 </div>
 
 <div class="container" id="pdContainer">
-  <div class="spinner mt-20"></div>
+  <div class="pd-wrap pd-skeleton" aria-hidden="true">
+    <div class="pd-gallery"><div class="main-img sk"></div></div>
+    <div class="pd-info">
+      <div class="sk sk-line short"></div>
+      <div class="sk sk-title"></div>
+      <div class="sk sk-line" style="width:30%"></div>
+      <div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div>
+      <div class="sk sk-btn"></div>
+    </div>
+  </div>
 </div>
 
 <div class="container" id="relatedSection"></div>
@@ -75,9 +105,6 @@ document.getElementById('hamburgerBtn').addEventListener('click', () => {
 <script type="module" src="js/dealer-cta.js"></script>
 <script type="module" src="js/ads-banner.js"></script>
 <script type="module" src="js/product-detail.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-<script src="js/premium.js?v=20260924b" defer></script>
-<script src="js/premium-motion.js?v=20260924b" defer></script>
+<script src="js/premium.js?v=20261014" defer></script>
 </body>
 </html>

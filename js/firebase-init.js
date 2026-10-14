@@ -1,24 +1,22 @@
-// Shared Firebase app/services initialization (v10 modular SDK via CDN)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+// Shared Firebase app + Firestore initialization (modular SDK via CDN).
+// Storefront pages only need Firestore, so Firebase Auth lives in its own
+// module (js/firebase-auth.js) that only the admin portal loads. That keeps
+// roughly 100 KB of auth code off every customer page navigation.
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
   getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc,
   deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp,
   increment, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-import {
-  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 import { firebaseConfig } from "./config.js";
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
 
 export {
-  db, auth,
+  app, db,
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp,
-  increment, runTransaction,
-  signInWithEmailAndPassword, onAuthStateChanged, signOut
+  increment, runTransaction
 };

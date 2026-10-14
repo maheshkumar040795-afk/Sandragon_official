@@ -1,5 +1,26 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## ⚡ Speed & design update (Oct 2026)
+
+**Faster page-to-page navigation**
+| Change | Effect |
+|---|---|
+| Shared catalog cache (`js/data-cache.js`, `js/products-store.js`) | Shop grid, product page, search and "You may also like" paint instantly from the last copy seen, then refresh from Firestore in the background. Prices/stock are still re-checked against Firestore at checkout. |
+| Categories no longer block page load (`js/categories.js`) | Search, menu and the grid used to wait for a Firestore round trip on every page. Now only the very first visit (and admin pages) wait. |
+| Product page renders from the grid's data | Opening a product from the shop shows it immediately instead of a spinner; related products come from the cache (one less query). |
+| Sized Cloudinary images (`js/img.js`) | Cards, thumbnails, banners and the lightbox request `f_auto,q_auto,w_…` versions with `srcset`, instead of multi-MB originals. Falls back to the original URL automatically if a transformed one fails. |
+| Hover prerender (Speculation Rules) | Chrome/Edge start loading a product page when a shopper hovers its link, so the click opens instantly. Other links are prefetched. |
+| Lighter pages | Firebase Auth split into `js/firebase-auth.js` (admin only); GSAP, the custom cursor loop, blurred orbs and the 0.7 s page fade-in removed; Razorpay script loads async; fonts and icons self-hosted (`fonts/`, `vendor/fontawesome/`) with preload/preconnect. |
+
+**Design & effects**
+- Barlow Condensed headings + Barlow body (sporty, compact); SANDRAGON wordmark keeps Playfair.
+- Product cards: second photo crossfades in on hover, lift on hover, press feedback, 2-column grid on phones.
+- Skeleton loaders on the shop grid and product page instead of spinners.
+- Native cross-page View Transitions (header stays, content crossfades).
+- Cart/wishlist counter pops when it increases and hides at 0; category pills become a swipeable row on phones.
+- Solid header, sticky product gallery on desktop, pill buttons with consistent radius system.
+
+
 ## ✨ New in this update
 
 On top of the original build, this version adds a full set of standard

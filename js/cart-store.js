@@ -61,7 +61,11 @@ export function cartCount() {
 
 export function updateCartBadge() {
   const el = document.getElementById('cartCount');
-  if (el) el.textContent = cartCount();
+  if (el) {
+    const n = cartCount();
+    el.textContent = n;
+    el.dataset.count = String(n); // CSS hides the bubble at 0
+  }
 }
 
 // Run on every page load

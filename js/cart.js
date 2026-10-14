@@ -4,6 +4,7 @@ import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
 import { getCustomer, saveCustomer } from "./customer-store.js";
 import { toast } from "./toast.js";
 import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
+import { cld, IMG_FALLBACK } from "./img.js";
 
 // DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
 // payment gateway and creates the order directly — so the full customer → admin
@@ -53,7 +54,7 @@ function renderCart() {
     </div>
   ` + cart.map((item, i) => `
     <div class="cart-item">
-      <img src="${item.image}" alt="${item.name}">
+      <img src="${cld(item.image, 160)}" data-orig="${item.image}" onerror="${IMG_FALLBACK}" alt="" decoding="async">
       <div>
         <div>${item.name}</div>
         <div class="meta">${optionsMetaHtml(item)}</div>
