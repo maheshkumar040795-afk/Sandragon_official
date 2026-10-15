@@ -6,14 +6,15 @@
 //   earnPoints   : ... earns Y points             (e.g. 10)
 //   pointValue   : 1 point is worth ₹Z at checkout (e.g. 1)
 //
-// Earning: on the amount actually paid for items (after coupon and points,
-// excluding delivery), counted in whole steps: ₹250 at 100→10 earns 20.
+// Earning: on the items subtotal (excluding delivery), in whole steps:
+// ₹250 at 100→10 earns 20. Orders that use points OR a coupon earn nothing,
+// and points can't be redeemed on an order that has a coupon.
 // Points are credited when the admin marks the order Confirmed.
 //
 // Redeeming: only on products the admin ticked "Points redeem applicable",
 // and at most maxRedeemPercent of those products' value, rounded off
-// (5% of ₹449 = ₹22.45 → 22 points). The rest is paid normally, and that
-// payment earns new points like any other purchase.
+// (5% of ₹449 = ₹22.45 → 22 points). The rest is paid normally; that
+// order earns no new points.
 import { db, doc, getDoc, setDoc } from "./firebase-init.js";
 import { readCache, writeCache } from "./data-cache.js";
 

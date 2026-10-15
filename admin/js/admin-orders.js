@@ -16,10 +16,18 @@ getPointsConfig().then(cfg => {
 // the CURRENT admin settings (never from a number the shopper's browser sent).
 function earnedPointsFor(o) {
   if (!pointsConfig?.enabled) return 0;
+  // No new points on orders that used points or a coupon.
+  if (earnBlockedReason(o)) return 0;
   const coupon = Number(o.coupon?.discountAmount) || 0;
   const redeemed = Number(o.points?.redeemValue) || 0;
   const itemsPaid = (Number(o.subtotal) || 0) - coupon - redeemed;
   return pointsForAmount(itemsPaid, pointsConfig);
+}
+
+function earnBlockedReason(o) {
+  if (Number(o.points?.redeemed) > 0) return 'it was paid partly with points';
+  if (o.coupon?.code || Number(o.coupon?.discountAmount) > 0) return 'a coupon was used';
+  return '';
 }
 
 function pointsLines(o) {
@@ -281,7 +289,8 @@ function pointsStatusHtml(o) {
     return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${done} points</strong> credited to ${o.customer.phone}${typeof o.points.balanceAfter === 'number' ? ` (balance now ${o.points.balanceAfter})` : ''}.</div>`;
   }
   if (due === 0) {
-    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> This order earns no points.</div>`;
+    const why = earnBlockedReason(o);
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> This order earns no points${why ? ` because ${why}` : ''}.</div>`;
   }
   // Confirmed earlier without points (e.g. while the programme was off): offer to add them now.
   if (o.status !== 'placed') {

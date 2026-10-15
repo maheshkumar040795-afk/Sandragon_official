@@ -1238,6 +1238,9 @@ body.light-theme footer{background:var(--bg)}
   border-radius:14px;background:rgba(201,162,39,.1);border:1px dashed #b8921f;
 }
 .points-box[hidden]{display:none}
+.points-box.is-blocked{background:rgba(0,0,0,.03);border-color:var(--border);opacity:.9}
+.points-box.is-blocked strong,.points-box.is-blocked i{color:var(--muted)}
+.coupon-remove{background:none;border:none;padding:0;color:inherit;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
 .points-box-text{display:flex;flex-direction:column;gap:3px;font-size:.88rem;line-height:1.45}
 .points-box-text strong{font-family:var(--font-display);font-size:1.05rem;letter-spacing:.04em;text-transform:uppercase}
 .points-box-text i{color:#a8841a}

@@ -2,7 +2,7 @@
 
 ## Points redeem limit, order tabs & Excel export (Oct 15, 2026)
 
-- **Redeem limit:** points can pay for at most *Max redeem %* (Admin → Points, default **5%**) of the eligible products' value, rounded off. Example: 550 points, ₹449 product → redeem 22 points, pay ₹427, and earn 40 new points on that ₹427 when the order is confirmed.
+- **Redeem limit:** points can pay for at most *Max redeem %* (Admin → Points, default **5%**) of the eligible products' value, rounded off. Example: 550 points, ₹449 product → redeem 22 points, pay ₹427. **An order that uses points or a coupon earns no new points, and points can't be combined with a coupon** (applying a coupon removes redeemed points; the cart has a *Remove coupon* link).
 - **Orders tabs:** New (placed) · Confirmed (confirmed / packed / shipped) · Delivered, each with a count. Tick rows (or the header box for all) and use **Delete Selected**. Deleting an order does not take back points already credited.
 - **Export Excel** (.xlsx, falls back to .csv if the Excel library can't load): Orders (current tab, or only the ticked rows; includes an Order Items sheet), Products, Coupons, Categories, and Customers & points (Admin → Points).
 
