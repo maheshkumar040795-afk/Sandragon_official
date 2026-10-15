@@ -6,7 +6,10 @@ import { business } from "../../js/config.js";
 import { getPointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
 
 let pointsConfig = null;
-getPointsConfig().then(cfg => { pointsConfig = cfg; });
+getPointsConfig().then(cfg => {
+  pointsConfig = cfg;
+  if (currentOrderId && modal.classList.contains('open')) openOrder(currentOrderId);
+});
 
 // Points this order earns, worked out here from the order's own amounts and
 // the CURRENT admin settings (never from a number the shopper's browser sent).
@@ -113,18 +116,39 @@ function buildDispatchMessage(o) {
   return `Hi ${o.customer.name}! Your SANDRAGON order #${o.id.slice(-8).toUpperCase()} has been shipped. 📦\n\nCourier: ${o.courierName}\nTracking / AWB No: ${o.awbNumber}\n\nThank you for shopping with us! 🐉`;
 }
 
-function pointsStatusHtml(o) {
-  if (!pointsConfig?.enabled && !o.points) return '';
-  const warn = o.points?.shortfall ? `<div class="coupon-msg err" style="display:block">Customer was ${o.points.shortfall} points short when this paid order was saved. Check before confirming.</div>` : '';
-  if (o.points?.credited) {
-    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${o.points.earned} points</strong> credited to ${o.customer.phone}${typeof o.points.balanceAfter === 'number' ? ` (balance now ${o.points.balanceAfter})` : ''}.</div>`;
-  }
-  const earn = earnedPointsFor(o);
-  return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> ${earn > 0 ? `<strong>${earn} points</strong> will be added to the customer's balance when you click <strong>Mark as Confirmed</strong>.` : 'This order earns no points.'}</div>`;
+// Points already added to the customer's balance for this order.
+function creditedSoFar(o) {
+  return o.points?.credited ? Number(o.points.earned) || 0 : 0;
 }
 
-// Adds the earned points to the customer's balance exactly once per order,
-// even if "Mark as Confirmed" is clicked twice or from two devices.
+function pointsStatusHtml(o) {
+  if (!pointsConfig) return '';
+  if (!pointsConfig.enabled) {
+    return `<div class="coupon-msg err mt-10" style="display:block"><i class="fas fa-triangle-exclamation"></i> The points programme is switched <strong>OFF</strong>, so confirming this order adds no points. Turn it on in <a href="points.html" style="text-decoration:underline">Admin → Points</a>, then come back and click <strong>Add Points</strong>.</div>`;
+  }
+  const warn = o.points?.shortfall ? `<div class="coupon-msg err" style="display:block">Customer was ${o.points.shortfall} points short when this paid order was saved. Check before confirming.</div>` : '';
+  const due = earnedPointsFor(o);
+  const done = creditedSoFar(o);
+  const missing = Math.max(0, due - done);
+  if (done > 0 && missing === 0) {
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${done} points</strong> credited to ${o.customer.phone}${typeof o.points.balanceAfter === 'number' ? ` (balance now ${o.points.balanceAfter})` : ''}.</div>`;
+  }
+  if (due === 0) {
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> This order earns no points.</div>`;
+  }
+  // Confirmed earlier without points (e.g. while the programme was off): offer to add them now.
+  if (o.status !== 'placed') {
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${missing} points</strong> have not been added to ${o.customer.phone} yet.
+      <button type="button" class="btn small" id="addMissingPointsBtn" style="margin-left:8px"><i class="fas fa-plus"></i> Add Points</button></div>`;
+  }
+  return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${due} points</strong> will be added to the customer's balance when you click <strong>Mark as Confirmed</strong>.</div>`;
+}
+
+// Adds the earned points to the customer's balance. Safe to click more than
+// once: it only ever adds the difference between what this order earns and
+// what was already added, so points are never given twice. If the programme
+// is off it confirms the order but adds nothing and does NOT lock the order,
+// so the points can still be added after the programme is switched on.
 async function creditPoints(orderId) {
   const o = ordersCache.find(x => x.id === orderId);
   if (!o?.customer?.phone) return;
@@ -135,23 +159,45 @@ async function creditPoints(orderId) {
     const orderSnap = await tx.get(orderRef);
     const custSnap = await tx.get(custRef);
     const current = orderSnap.data() || {};
-    if (current.points?.credited) return;
+    const already = current.points?.credited ? Number(current.points.earned) || 0 : 0;
+    const delta = earned - already;
+    const statusUpdate = current.status === 'placed' || !current.status
+      ? { status: 'confirmed', confirmedAt: serverTimestamp() }
+      : {};
+
+    if (!pointsConfig?.enabled || delta <= 0) {
+      if (Object.keys(statusUpdate).length) tx.update(orderRef, statusUpdate);
+      return;
+    }
+
     const balance = custSnap.exists() ? Number(custSnap.data().pointsBalance) || 0 : 0;
     const earnedTotal = custSnap.exists() ? Number(custSnap.data().pointsEarnedTotal) || 0 : 0;
-    const balanceAfter = balance + earned;
-    if (earned > 0) {
-      if (custSnap.exists()) {
-        tx.update(custRef, { pointsBalance: balanceAfter, pointsEarnedTotal: earnedTotal + earned });
-      } else {
-        tx.set(custRef, { phone: o.customer.phone, name: o.customer.name || '', pointsBalance: balanceAfter, pointsEarnedTotal: earned, createdAt: serverTimestamp() });
-      }
+    const balanceAfter = balance + delta;
+    if (custSnap.exists()) {
+      tx.update(custRef, { pointsBalance: balanceAfter, pointsEarnedTotal: earnedTotal + delta });
+    } else {
+      tx.set(custRef, { phone: o.customer.phone, name: o.customer.name || '', pointsBalance: balanceAfter, pointsEarnedTotal: delta, createdAt: serverTimestamp() });
     }
     tx.update(orderRef, {
-      status: 'confirmed',
-      confirmedAt: serverTimestamp(),
+      ...statusUpdate,
       points: { ...(current.points || {}), earned, credited: true, balanceAfter, creditedAt: serverTimestamp() }
     });
   });
+}
+
+async function runCredit(btn) {
+  if (btn) btn.disabled = true;
+  try {
+    pointsConfig = await getPointsConfig(); // always use the latest setting
+    await creditPoints(currentOrderId);
+  } catch (err) {
+    console.error(err);
+    alert('Could not confirm the order / add points. Check the console for details.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+  await loadOrders();
+  openOrder(currentOrderId);
 }
 
 function openOrder(id) {
@@ -225,20 +271,12 @@ function openOrder(id) {
 
 document.getElementById('closeModalBtn').addEventListener('click', () => modal.classList.remove('open'));
 
-document.getElementById('markConfirmedBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('markConfirmedBtn');
-  btn.disabled = true;
-  try {
-    if (!pointsConfig) pointsConfig = await getPointsConfig();
-    await creditPoints(currentOrderId);
-  } catch (err) {
-    console.error(err);
-    alert('Could not confirm the order / credit points. Check the console for details.');
-  } finally {
-    btn.disabled = false;
-  }
-  await loadOrders();
-  openOrder(currentOrderId);
+document.getElementById('markConfirmedBtn').addEventListener('click', (e) => runCredit(e.currentTarget));
+
+// "Add Points" lives inside the order body, which is re-rendered each time.
+document.getElementById('modalOrderBody').addEventListener('click', (e) => {
+  const btn = e.target.closest('#addMissingPointsBtn');
+  if (btn) runCredit(btn);
 });
 
 document.getElementById('sendConfirmWhatsAppBtn').addEventListener('click', () => {
