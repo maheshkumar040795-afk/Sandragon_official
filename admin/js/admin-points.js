@@ -52,9 +52,10 @@ function renderPreview() {
   const usePts = Math.floor(capRs / c.pointValue);
   const useRs = pointsToRupees(usePts, cfg);
   const pay = item - useRs;
-  const earned = pointsForAmount(pay, cfg);
+  const earnedNormal = pointsForAmount(item, cfg);
   preview.innerHTML = `<i class="fas fa-circle-check gold"></i> Every <strong>₹${c.spendAmount.toLocaleString('en-IN')}</strong> spent earns <strong>${c.earnPoints} points</strong>, <strong>1 point = ₹${c.pointValue}</strong>, and points can pay for up to <strong>${c.maxRedeemPercent}%</strong> of eligible items.<br>
-    Example: a customer with 550 points buys a ₹${item} eligible product. They can redeem <strong>${usePts} points</strong> (${c.maxRedeemPercent}% of ₹${item}, rounded), pay <strong>₹${pay}</strong>, and earn <strong>${earned} new points</strong> on that ₹${pay}.`;
+    Example: buying a ₹${item} product normally earns <strong>${earnedNormal} points</strong>. A customer with 550 points can instead redeem <strong>${usePts} points</strong> (${c.maxRedeemPercent}% of ₹${item}, rounded) and pay <strong>₹${pay}</strong>, and that order earns <strong>no new points</strong>.<br>
+    Orders with a coupon can't use points and earn no points.`;
 }
 
 [spendInput, earnInput, valueInput, maxPctInput].forEach(el => el.addEventListener('input', renderPreview));

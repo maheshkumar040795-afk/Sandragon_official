@@ -73,6 +73,7 @@ async function renderPointsCard(phone) {
       <li><i class="fas fa-coins"></i> 1 point = ₹${cfg.pointValue}</li>
       <li><i class="fas fa-bag-shopping"></i> ${pointsRuleText(cfg).split('. ')[0]}.</li>
       <li><i class="fas fa-circle-check"></i> Points are added when your order is confirmed.</li>
+      <li><i class="fas fa-circle-info"></i> Orders that use points or a coupon don't earn new points, and points can't be combined with a coupon.</li>
       <li><i class="fas fa-tag"></i> Redeem them at checkout on products marked "Points OK", for up to ${cfg.maxRedeemPercent}% of those products' price per order.</li>
     </ul>`;
 }

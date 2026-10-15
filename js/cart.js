@@ -146,13 +146,16 @@ function computeTotals() {
   const subtotal = cartTotal();
   const mrpTotal = cart.reduce((s, i) => s + (mrpOf(i) || i.price) * i.qty, 0);
   const discount = computeDiscount(subtotal);
-  const redeemablePoints = maxRedeemablePoints(subtotal, discount);
-  const pointsUsed = redeemOn ? redeemablePoints : 0;
+  // Rules: a coupon and points can't be used together, and an order that
+  // uses a coupon OR points earns no new points.
+  const couponOn = !!appliedCoupon;
+  const redeemablePoints = couponOn ? 0 : maxRedeemablePoints(subtotal, discount);
+  const pointsUsed = redeemOn && !couponOn ? redeemablePoints : 0;
   const pointsValue = pointsToRupees(pointsUsed, pointsConfig);
   const shippingCharge = currentShippingCharge(subtotal);
   const total = Math.max(0, subtotal - discount - pointsValue + shippingCharge);
-  const pointsEarned = pointsForAmount(subtotal - discount - pointsValue, pointsConfig);
-  return { subtotal, mrpTotal, discount, redeemablePoints, pointsUsed, pointsValue, shippingCharge, total, pointsEarned };
+  const pointsEarned = (couponOn || pointsUsed > 0) ? 0 : pointsForAmount(subtotal, pointsConfig);
+  return { subtotal, mrpTotal, discount, redeemablePoints, pointsUsed, pointsValue, shippingCharge, total, pointsEarned, couponOn };
 }
 
 function renderPointsBox(t) {
@@ -161,12 +164,25 @@ function renderPointsBox(t) {
   const hasEligible = getCart().some(i => i.pointsRedeemable);
   // Hidden unless the programme is on, this shopper has points, and at
   // least one product in the cart allows paying with points.
-  if (!pointsConfig.enabled || !hasEligible || pointsBalance <= 0 || t.redeemablePoints <= 0) {
+  const couldRedeem = maxRedeemablePoints(t.subtotal, 0);
+  if (!pointsConfig.enabled || !hasEligible || pointsBalance <= 0 || couldRedeem <= 0) {
     box.hidden = true;
-    if (redeemOn && t.redeemablePoints <= 0) redeemOn = false;
+    if (redeemOn) redeemOn = false;
     return;
   }
   box.hidden = false;
+  // A coupon is applied: explain why points can't be used, no button.
+  if (t.couponOn) {
+    box.classList.add('is-blocked');
+    box.innerHTML = `
+      <div class="points-box-text">
+        <strong><i class="fas fa-coins"></i> Points not available with a coupon</strong>
+        <span>You have <b>${pointsBalance.toLocaleString('en-IN')} points</b>. Points can't be used together with a coupon, and no new points are earned on coupon orders.
+          <small>Remove the coupon to use your points instead.</small></span>
+      </div>`;
+    return;
+  }
+  box.classList.remove('is-blocked');
   const worth = pointsToRupees(t.redeemablePoints, pointsConfig);
   box.innerHTML = `
     <div class="points-box-text">
@@ -174,7 +190,7 @@ function renderPointsBox(t) {
       <span>You have <b>${pointsBalance.toLocaleString('en-IN')} points</b> (${inr(pointsToRupees(pointsBalance, pointsConfig))}).
         ${redeemOn ? `Using <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points: <b>-${inr(worth)}</b>.`
                    : `Use <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points to save <b>${inr(worth)}</b> on eligible items.`}
-        <small>You can use points for up to ${pointsConfig.maxRedeemPercent}% of eligible items per order.</small></span>
+        <small>${redeemOn ? 'No new points are earned on an order paid with points.' : `You can use points for up to ${pointsConfig.maxRedeemPercent}% of eligible items per order. Orders paid with points don't earn new points.`}</small></span>
     </div>
     <button type="button" class="btn small ${redeemOn ? 'outline' : ''}" id="redeemBtn">${redeemOn ? 'Remove' : 'Redeem'}</button>`;
   document.getElementById('redeemBtn').addEventListener('click', () => {
@@ -222,6 +238,25 @@ function updateSummary() {
   } else {
     discountRow.style.display = 'none';
   }
+}
+
+// Lets the shopper take the coupon off again (for example to use points instead).
+function addRemoveCouponLink() {
+  const el = document.getElementById('couponMsg');
+  if (!el) return;
+  const link = document.createElement('button');
+  link.type = 'button';
+  link.className = 'coupon-remove';
+  link.textContent = 'Remove coupon';
+  link.addEventListener('click', () => {
+    appliedCoupon = null;
+    el.style.display = 'none';
+    const input = document.getElementById('couponInput');
+    if (input) input.value = '';
+    updateSummary();
+  });
+  el.appendChild(document.createTextNode(' '));
+  el.appendChild(link);
 }
 
 document.getElementById('applyCouponBtn')?.addEventListener('click', applyCoupon);
@@ -285,7 +320,10 @@ async function applyCoupon() {
     }
     appliedCoupon = { code, type: c.type, value: Number(c.value) };
     const label = c.type === 'percent' ? `${c.value}% off` : `₹${Number(c.value).toLocaleString('en-IN')} off`;
-    showCouponMsg(`"${code}" applied — ${label}!`, true);
+    const hadPoints = redeemOn;
+    redeemOn = false; // coupon and points can't be combined
+    showCouponMsg(`"${code}" applied: ${label}.${hadPoints ? ' Your points were removed, because points and coupons can\'t be used together.' : ''} No points are earned on coupon orders.`, true);
+    addRemoveCouponLink();
     toast(`Coupon "${code}" applied!`, 'success');
     updateSummary();
   } catch (err) {
