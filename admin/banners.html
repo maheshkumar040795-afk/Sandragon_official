@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Banners | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261014">
+<link rel="stylesheet" href="../css/style.css?v=20261015">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -19,6 +19,7 @@
     <a href="banners.html" class="active"><i class="fas fa-images"></i> Banners</a>
     <a href="coupons.html"><i class="fas fa-tags"></i> Coupons</a>
     <a href="settings.html"><i class="fas fa-truck-fast"></i> Delivery</a>
+    <a href="points.html"><i class="fas fa-coins"></i> Points</a>
     <a href="../index.html" target="_blank"><i class="fas fa-store"></i> View Store</a>
     <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </aside>
@@ -30,6 +31,31 @@
     </div>
     <p class="stock-note mb-10">Recommended image size: <strong>1756 × 450px</strong>. Up to 6 slides, auto-advancing every 3 seconds on the storefront. Leave a slide blank to skip it.</p>
     <div class="banner-slots" id="bannerSlots"></div>
+
+    <div class="admin-header" style="margin-top:50px">
+      <h2>Landing Video</h2>
+      <button class="btn" id="saveHeroBtn"><i class="fas fa-save"></i> Save Video</button>
+    </div>
+    <p class="stock-note mb-10">The video at the top of the homepage. For a sharp HD result, upload your <strong>original 1080p (1920 × 1080) or 4K export</strong>, not a copy downloaded from WhatsApp or Instagram (those are compressed). Keep it under 100 MB and 10 to 20 seconds. The site automatically sends phones and laptops a size that fits their screen.</p>
+    <div class="hero-slots">
+      <div class="banner-slot">
+        <div class="stock-note mb-10"><strong>Desktop / landscape video</strong> (16:9)</div>
+        <div class="hero-preview" id="heroDesktopPreview"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button type="button" class="btn small outline" id="uploadHeroDesktopBtn"><i class="fas fa-upload"></i> Upload Video</button>
+          <button type="button" class="btn small outline" id="resetHeroDesktopBtn">Use default</button>
+        </div>
+      </div>
+      <div class="banner-slot">
+        <div class="stock-note mb-10"><strong>Phone video (optional)</strong> (portrait 9:16)</div>
+        <div class="hero-preview portrait" id="heroMobilePreview"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button type="button" class="btn small outline" id="uploadHeroMobileBtn"><i class="fas fa-upload"></i> Upload Video</button>
+          <button type="button" class="btn small outline" id="resetHeroMobileBtn">Remove</button>
+        </div>
+      </div>
+    </div>
+    <span id="heroSaveStatus" class="stock-note"></span>
 
     <div class="admin-header mt-20" style="margin-top:50px">
       <h2>Promotional Ads</h2>
@@ -85,6 +111,7 @@
 
 <script type="module" src="js/admin-banners.js"></script>
 <script type="module" src="js/admin-ads.js"></script>
-<script src="../js/premium.js?v=20261014" defer></script>
+<script type="module" src="js/admin-hero.js"></script>
+<script src="../js/premium.js?v=20261015" defer></script>
 </body>
 </html>

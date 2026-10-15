@@ -8,6 +8,7 @@ import { toast } from "./toast.js";
 import { watchProducts } from "./products-store.js";
 import { tsMillis } from "./data-cache.js";
 import { imgHtml } from "./img.js";
+import { priceHtml, discountPct } from "./pricing.js";
 import "./cart-store.js";
 
 const grid = document.getElementById('productGrid');
@@ -75,7 +76,7 @@ function cardHtml(p, id, index) {
       <div class="name">${escapeHtml(p.name)}</div>
       ${starsHtml(avg, Number(p.ratingCount) || 0, 'sm')}
       <div class="price-row">
-        <div class="price">₹${Number(p.price).toLocaleString('en-IN')}</div>
+        ${priceHtml(p)}
         ${stockBadge(p)}
       </div>
     </div>`;
@@ -87,6 +88,7 @@ function sortItems(items) {
     case 'price-low': return sorted.sort((a, b) => Number(a.data.price) - Number(b.data.price));
     case 'price-high': return sorted.sort((a, b) => Number(b.data.price) - Number(a.data.price));
     case 'rating': return sorted.sort((a, b) => ratingAvg(b.data) - ratingAvg(a.data));
+    case 'discount': return sorted.sort((a, b) => discountPct(b.data) - discountPct(a.data));
     case 'newest':
     default:
       return sorted; // allProducts is already newest-first
@@ -162,7 +164,7 @@ grid.addEventListener('click', (e) => {
   const id = btn.dataset.wish;
   const p = allProducts.find(x => x.id === id)?.data;
   if (!p) return;
-  const added = toggleWishlist({ id, name: p.name, image: (p.images && p.images[0]) || 'assets/logo.jpeg', price: Number(p.price) });
+  const added = toggleWishlist({ id, name: p.name, image: (p.images && p.images[0]) || 'assets/logo.jpeg', price: Number(p.price), mrp: Number(p.mrp) || 0 });
   btn.classList.toggle('active', added);
   btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
   toast(added ? `Added "${escapeHtml(p.name)}" to your wishlist` : `Removed "${escapeHtml(p.name)}" from your wishlist`, 'wishlist');
@@ -219,6 +221,7 @@ function renderToolbar() {
         <option value="price-low">Price: low to high</option>
         <option value="price-high">Price: high to low</option>
         <option value="rating">Top rated</option>
+        <option value="discount">Biggest discount</option>
       </select>
     </label>
   `;

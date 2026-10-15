@@ -65,8 +65,27 @@ service cloud.firestore {
     // Customers: lightweight "account" keyed by phone number, same trust model as
     // orders above (no real auth — phone number is a convenience identifier, not a
     // verified credential). No payment/card data is ever stored here.
+    //
+    // Purchase points live on this doc as `pointsBalance` (plus running totals
+    // `pointsEarnedTotal` / `pointsRedeemedTotal`). Because there is no login,
+    // a shopper's browser must never be able to ADD points:
+    //  - creating an account can't start with a balance above 0;
+    //  - normal profile edits can't touch any points field;
+    //  - the checkout can only LOWER pointsBalance (redeeming), never raise it;
+    //  - only the admin (on "Mark as Confirmed") can credit earned points.
     match /customers/{phone} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if isAdmin() ||
+        request.resource.data.get('pointsBalance', 0) == 0 &&
+        request.resource.data.get('pointsEarnedTotal', 0) == 0;
+      allow update: if isAdmin() ||
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['pointsBalance', 'pointsEarnedTotal', 'pointsRedeemedTotal']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pointsBalance']) &&
+         request.resource.data.pointsBalance is number &&
+         request.resource.data.pointsBalance >= 0 &&
+         request.resource.data.pointsBalance < resource.data.get('pointsBalance', 0));
+      allow delete: if isAdmin();
     }
 
     // Settings: site-wide config docs (e.g. the homepage banner carousel,

@@ -1,8 +1,31 @@
 import { requireAdmin, setupLogoutButton } from "./admin-auth.js";
 import {
-  db, collection, getDocs, doc, updateDoc, orderBy, query, serverTimestamp
+  db, collection, getDocs, doc, updateDoc, orderBy, query, serverTimestamp, runTransaction
 } from "../../js/firebase-init.js";
 import { business } from "../../js/config.js";
+import { getPointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
+
+let pointsConfig = null;
+getPointsConfig().then(cfg => { pointsConfig = cfg; });
+
+// Points this order earns, worked out here from the order's own amounts and
+// the CURRENT admin settings (never from a number the shopper's browser sent).
+function earnedPointsFor(o) {
+  if (!pointsConfig?.enabled) return 0;
+  const coupon = Number(o.coupon?.discountAmount) || 0;
+  const redeemed = Number(o.points?.redeemValue) || 0;
+  const itemsPaid = (Number(o.subtotal) || 0) - coupon - redeemed;
+  return pointsForAmount(itemsPaid, pointsConfig);
+}
+
+function pointsLines(o) {
+  const p = o.points;
+  if (!p?.credited || !(p.earned > 0)) return '';
+  const value = pointsConfig?.pointValue ?? 1;
+  return `\n\n🪙 You earned *${p.earned} SANDRAGON points* on this order (worth ₹${pointsToRupees(p.earned, { pointValue: value }).toLocaleString('en-IN')}).` +
+    (typeof p.balanceAfter === 'number' ? `\nYour points balance: *${p.balanceAfter} points* = ₹${pointsToRupees(p.balanceAfter, { pointValue: value }).toLocaleString('en-IN')}.` : '') +
+    `\n1 point = ₹${value}. Use your points at checkout on your next order.`;
+}
 
 requireAdmin(() => loadOrders());
 setupLogoutButton();
@@ -62,7 +85,8 @@ function buildConfirmMessage(o) {
     const variant = itemVariantLabel(i);
     return `• ${i.name}${variant ? ' (' + variant + ')' : ''} x${i.qty}`;
   }).join('\n');
-  return `Hi ${o.customer.name}! 🙏 Thank you for shopping with SANDRAGON.\n\nYour order #${o.id.slice(-8).toUpperCase()} has been confirmed:\n${itemLines}\n\nTotal Paid: ₹${Number(o.totalAmount).toLocaleString('en-IN')}\n\nWe're preparing your order now and will share tracking details soon. For any queries, reach us here anytime. 🐉`;
+  const redeemedLine = o.points?.redeemed > 0 ? `\nPoints redeemed: ${o.points.redeemed} (-₹${Number(o.points.redeemValue).toLocaleString('en-IN')})` : '';
+  return `Hi ${o.customer.name}! 🙏 Thank you for shopping with SANDRAGON.\n\nYour order #${o.id.slice(-8).toUpperCase()} has been confirmed:\n${itemLines}${redeemedLine}\n\nTotal Paid: ₹${Number(o.totalAmount).toLocaleString('en-IN')}${pointsLines(o)}\n\nWe're preparing your order now and will share tracking details soon. For any queries, reach us here anytime. 🐉`;
 }
 
 function groupItemsByVendor(o) {
@@ -89,6 +113,47 @@ function buildDispatchMessage(o) {
   return `Hi ${o.customer.name}! Your SANDRAGON order #${o.id.slice(-8).toUpperCase()} has been shipped. 📦\n\nCourier: ${o.courierName}\nTracking / AWB No: ${o.awbNumber}\n\nThank you for shopping with us! 🐉`;
 }
 
+function pointsStatusHtml(o) {
+  if (!pointsConfig?.enabled && !o.points) return '';
+  const warn = o.points?.shortfall ? `<div class="coupon-msg err" style="display:block">Customer was ${o.points.shortfall} points short when this paid order was saved. Check before confirming.</div>` : '';
+  if (o.points?.credited) {
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${o.points.earned} points</strong> credited to ${o.customer.phone}${typeof o.points.balanceAfter === 'number' ? ` (balance now ${o.points.balanceAfter})` : ''}.</div>`;
+  }
+  const earn = earnedPointsFor(o);
+  return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> ${earn > 0 ? `<strong>${earn} points</strong> will be added to the customer's balance when you click <strong>Mark as Confirmed</strong>.` : 'This order earns no points.'}</div>`;
+}
+
+// Adds the earned points to the customer's balance exactly once per order,
+// even if "Mark as Confirmed" is clicked twice or from two devices.
+async function creditPoints(orderId) {
+  const o = ordersCache.find(x => x.id === orderId);
+  if (!o?.customer?.phone) return;
+  const earned = earnedPointsFor(o);
+  const orderRef = doc(db, 'orders', orderId);
+  const custRef = doc(db, 'customers', o.customer.phone);
+  await runTransaction(db, async (tx) => {
+    const orderSnap = await tx.get(orderRef);
+    const custSnap = await tx.get(custRef);
+    const current = orderSnap.data() || {};
+    if (current.points?.credited) return;
+    const balance = custSnap.exists() ? Number(custSnap.data().pointsBalance) || 0 : 0;
+    const earnedTotal = custSnap.exists() ? Number(custSnap.data().pointsEarnedTotal) || 0 : 0;
+    const balanceAfter = balance + earned;
+    if (earned > 0) {
+      if (custSnap.exists()) {
+        tx.update(custRef, { pointsBalance: balanceAfter, pointsEarnedTotal: earnedTotal + earned });
+      } else {
+        tx.set(custRef, { phone: o.customer.phone, name: o.customer.name || '', pointsBalance: balanceAfter, pointsEarnedTotal: earned, createdAt: serverTimestamp() });
+      }
+    }
+    tx.update(orderRef, {
+      status: 'confirmed',
+      confirmedAt: serverTimestamp(),
+      points: { ...(current.points || {}), earned, credited: true, balanceAfter, creditedAt: serverTimestamp() }
+    });
+  });
+}
+
 function openOrder(id) {
   const o = ordersCache.find(x => x.id === id);
   if (!o) return;
@@ -110,12 +175,14 @@ function openOrder(id) {
     <div class="order-totals mb-10">
       <div><span>Subtotal</span><span>₹${Number(o.subtotal).toLocaleString('en-IN')}</span></div>
       ${hasDiscount ? `<div><span>Coupon (${o.coupon.code})</span><span class="gold">-₹${Number(o.coupon.discountAmount).toLocaleString('en-IN')}</span></div>` : ''}
+      ${o.points?.redeemed > 0 ? `<div><span>Points redeemed (${o.points.redeemed})</span><span class="gold">-₹${Number(o.points.redeemValue).toLocaleString('en-IN')}</span></div>` : ''}
       <div><span>Delivery</span><span>${shipping > 0 ? '₹' + shipping.toLocaleString('en-IN') : 'Free'}</span></div>
       <div class="order-totals-final"><span>Total Paid</span><span>₹${Number(o.totalAmount).toLocaleString('en-IN')}</span></div>
     </div>` : ''}
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
     <div class="stock-note">Payment ID: ${o.paymentId}</div>
+    ${pointsStatusHtml(o)}
   `;
 
   document.getElementById('confirmPreview').textContent = buildConfirmMessage(o);
@@ -159,7 +226,17 @@ function openOrder(id) {
 document.getElementById('closeModalBtn').addEventListener('click', () => modal.classList.remove('open'));
 
 document.getElementById('markConfirmedBtn').addEventListener('click', async () => {
-  await updateDoc(doc(db, 'orders', currentOrderId), { status: 'confirmed', confirmedAt: serverTimestamp() });
+  const btn = document.getElementById('markConfirmedBtn');
+  btn.disabled = true;
+  try {
+    if (!pointsConfig) pointsConfig = await getPointsConfig();
+    await creditPoints(currentOrderId);
+  } catch (err) {
+    console.error(err);
+    alert('Could not confirm the order / credit points. Check the console for details.');
+  } finally {
+    btn.disabled = false;
+  }
   await loadOrders();
   openOrder(currentOrderId);
 });

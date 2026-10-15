@@ -1,5 +1,7 @@
 import { getCustomer, saveCustomer, clearCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
+import { getPointsConfig, fetchPointsBalance, pointsToRupees, pointsRuleText } from "./points-store.js";
+import { inr } from "./pricing.js";
 
 const card = document.getElementById('profileCard');
 
@@ -9,6 +11,7 @@ function viewHtml(c) {
       <h2 style="margin:0">My Profile</h2>
       <button class="profile-edit-btn" id="editProfileBtn" title="Edit details"><i class="fas fa-pen"></i></button>
     </div>
+    <div class="points-card" id="pointsCard" hidden></div>
     <div class="profile-field"><label>Full Name</label><div class="value">${c.name}</div></div>
     <div class="profile-field"><label>Mobile Number</label><div class="value">${c.phone}</div></div>
     <div class="profile-field"><label>Email</label><div class="value">${c.email || '—'}</div></div>
@@ -43,12 +46,35 @@ function renderView() {
   const c = getCustomer();
   if (!c) { renderSignedOut(); return; }
   card.innerHTML = viewHtml(c);
+  renderPointsCard(c.phone);
   document.getElementById('editProfileBtn').addEventListener('click', renderEdit);
   document.getElementById('logoutBtn').addEventListener('click', () => {
     clearCustomer();
     window.dispatchEvent(new CustomEvent('sandragon:customer-updated'));
     window.location.href = 'index.html';
   });
+}
+
+// "My Points" panel: balance, rupee value and a short guide.
+async function renderPointsCard(phone) {
+  const [cfg, balance] = await Promise.all([getPointsConfig(), fetchPointsBalance(phone)]);
+  const el = document.getElementById('pointsCard');
+  if (!el || !cfg.enabled) return;
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="points-card-top">
+      <div>
+        <div class="points-card-label">My SANDRAGON Points</div>
+        <div class="points-card-balance">${balance.toLocaleString('en-IN')} <span>points</span></div>
+      </div>
+      <div class="points-card-worth">Worth<br><strong>${inr(pointsToRupees(balance, cfg))}</strong></div>
+    </div>
+    <ul class="points-guide">
+      <li><i class="fas fa-coins"></i> 1 point = ₹${cfg.pointValue}</li>
+      <li><i class="fas fa-bag-shopping"></i> ${pointsRuleText(cfg).split('. ')[0]}.</li>
+      <li><i class="fas fa-circle-check"></i> Points are added when your order is confirmed.</li>
+      <li><i class="fas fa-tag"></i> Redeem them at checkout on products marked "Points OK".</li>
+    </ul>`;
 }
 
 function renderEdit() {

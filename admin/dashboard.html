@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Products | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261014">
+<link rel="stylesheet" href="../css/style.css?v=20261015">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -19,6 +19,7 @@
     <a href="banners.html"><i class="fas fa-images"></i> Banners</a>
     <a href="coupons.html"><i class="fas fa-tags"></i> Coupons</a>
     <a href="settings.html"><i class="fas fa-truck-fast"></i> Delivery</a>
+    <a href="points.html"><i class="fas fa-coins"></i> Points</a>
     <a href="../index.html" target="_blank"><i class="fas fa-store"></i> View Store</a>
     <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </aside>
@@ -30,10 +31,10 @@
     </div>
     <table>
       <thead>
-        <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th><th>Reviews</th></tr>
+        <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Points</th><th>Stock</th><th>Status</th><th>Actions</th><th>Reviews</th></tr>
       </thead>
       <tbody id="productsTableBody">
-        <tr><td colspan="8" class="text-center">Loading...</td></tr>
+        <tr><td colspan="9" class="text-center">Loading...</td></tr>
       </tbody>
     </table>
   </main>
@@ -57,10 +58,17 @@
       <label>Category *</label>
       <select id="fCategory"></select>
     </div>
-    <div class="form-group">
-      <label>Price (₹) *</label>
-      <input type="number" id="fPrice" min="0">
+    <div class="price-fields">
+      <div class="form-group">
+        <label for="fMrp">Actual Price (₹) *</label>
+        <input type="number" id="fMrp" min="0" placeholder="e.g. 1000">
+      </div>
+      <div class="form-group">
+        <label for="fPrice">Discount Price (₹)</label>
+        <input type="number" id="fPrice" min="0" placeholder="e.g. 600">
+      </div>
     </div>
+    <p class="stock-note" id="priceHint" style="margin:-8px 0 18px">Leave Discount Price empty to sell at the actual price.</p>
     <div class="form-group">
       <label>Stock (total units)</label>
       <input type="number" id="fStock" min="0">
@@ -106,6 +114,12 @@
     </div>
     <div class="form-group">
       <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="fPointsRedeemable" style="width:auto"> Points redeem applicable
+      </label>
+      <p class="stock-note" style="margin-top:4px">If checked, customers can pay for this product with their purchase points at checkout. If unchecked, the redeem option is not shown for this product.</p>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px">
         <input type="checkbox" id="fCouponExcluded" style="width:auto"> Coupon not applicable for this product
       </label>
       <p class="stock-note" style="margin-top:4px">If checked, customers who have this product in their cart won't be able to apply any coupon code.</p>
@@ -142,6 +156,6 @@
 
 <script type="module" src="js/admin-products.js"></script>
 <script type="module" src="js/admin-product-reviews.js"></script>
-<script src="../js/premium.js?v=20261014" defer></script>
+<script src="../js/premium.js?v=20261015" defer></script>
 </body>
 </html>

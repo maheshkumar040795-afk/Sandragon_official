@@ -1,11 +1,26 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## 🪙 Discounts, purchase points & HD landing video (Oct 15, 2026)
+
+| Feature | How it works | Files |
+|---|---|---|
+| **Actual price + discount price** | Admin → Products → Add/Edit has *Actual Price* and *Discount Price* with a live "↓40% off" preview. The store shows ~~₹1,000~~ **₹600 ↓40%** on cards, product page ("You save ₹400"), wishlist, recently viewed and cart. New sort: *Biggest discount*. `price` stays the selling price; `mrp` is the struck-out price. | `js/pricing.js`, `admin/dashboard.html`, `admin/js/admin-products.js` |
+| **Purchase Points settings** | Admin → **Points**: switch on/off, "for every ₹100 → 10 points", "1 point = ₹1". | `admin/points.html`, `admin/js/admin-points.js`, `js/points-store.js` |
+| **Points redeem applicable (per product)** | Checkbox on each product. The cart shows **Redeem your points here** only when the cart has at least one such product, and points can only cover those products' value. | `js/cart.js`, `cart.html` |
+| **Safe redemption** | Points are deducted in the same Firestore transaction that saves the order, so they can't be spent twice. Cart prices are re-read from Firestore on the cart page. | `js/cart.js` |
+| **Earning + WhatsApp** | Points earned = whole ₹100 steps of the item amount actually paid (after coupon and points, excluding delivery). Credited once when admin clicks **Mark as Confirmed**; the confirmation WhatsApp includes points earned, new balance and "1 point = ₹1". | `admin/js/admin-orders.js` |
+| **Customer profile** | "My SANDRAGON Points" card: balance, rupee value and a short guide. Order history shows points earned/redeemed per order; product pages show "Earn N points". | `js/profile.js`, `js/order-history.js`, `js/product-detail.js` |
+| **HD landing video** | The hero now requests a copy sized to the screen at Cloudinary's best automatic quality and format (`f_auto,q_auto:best,w_…`), with the original as fallback. Admin → Banners → **Landing Video** lets you upload a new 1080p/4K desktop video and an optional portrait phone video, and shows each file's real resolution. | `js/hero-video.js`, `js/hero-store.js`, `admin/js/admin-hero.js` |
+
+**One-time step:** re-deploy `firestore.rules` (`firebase deploy --only firestore:rules`, or paste it into Firebase Console → Firestore → Rules). The new rules stop a shopper's browser from ever adding points to a balance; only the admin can credit points.
+
+
 ## ⚡ Speed & design update (Oct 2026)
 
 **Faster page-to-page navigation**
 | Change | Effect |
 |---|---|
-| Shared catalog cache (`js/data-cache.js`, `js/products-store.js`) | Shop grid, product page, search and "You may also like" paint instantly from the last copy seen, then refresh from Firestore in the background. Prices/stock are still re-checked against Firestore at checkout. |
+| Shared catalog cache (`js/data-cache.js`, `js/products-store.js`) | Shop grid, product page, search and "You may also like" paint instantly from the last copy seen, then refresh from Firestore in the background. The cart page re-reads every product from Firestore and updates prices before checkout (added Oct 15). |
 | Categories no longer block page load (`js/categories.js`) | Search, menu and the grid used to wait for a Firestore round trip on every page. Now only the very first visit (and admin pages) wait. |
 | Product page renders from the grid's data | Opening a product from the shop shows it immediately instead of a spinner; related products come from the cache (one less query). |
 | Sized Cloudinary images (`js/img.js`) | Cards, thumbnails, banners and the lightbox request `f_auto,q_auto,w_…` versions with `srcset`, instead of multi-MB originals. Falls back to the original URL automatically if a transformed one fails. |
