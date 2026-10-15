@@ -96,6 +96,7 @@ img{max-width:100%;display:block}
 .btn:active{transform:scale(.97)}
 .btn.outline{background:transparent;border:1.5px solid var(--gold);color:var(--gold);box-shadow:none}
 body.light-theme .btn.outline{color:#8a6d12;border-color:#b8921f}
+body.light-theme .btn.outline:hover{color:#111;border-color:var(--gold)}
 .btn.outline:hover{background:var(--gold);color:#111}
 .btn.danger{background:var(--danger);color:#fff;box-shadow:0 8px 22px -6px rgba(224,86,74,.4)}
 .btn.small{padding:10px 18px;font-size:.88rem}
@@ -1240,6 +1241,7 @@ body.light-theme footer{background:var(--bg)}
 .points-box-text{display:flex;flex-direction:column;gap:3px;font-size:.88rem;line-height:1.45}
 .points-box-text strong{font-family:var(--font-display);font-size:1.05rem;letter-spacing:.04em;text-transform:uppercase}
 .points-box-text i{color:#a8841a}
+.points-box-text small{color:var(--muted);font-size:.78rem}
 .points-box .btn{flex-shrink:0}
 .summary-save{margin-top:12px;padding:8px 12px;border-radius:10px;background:rgba(23,128,61,.1);color:#17803d;font-weight:600;font-size:.9rem;text-align:center}
 .summary-earn{margin-top:8px;font-size:.84rem;color:var(--muted);text-align:center}
@@ -1283,3 +1285,17 @@ body.light-theme footer{background:var(--bg)}
 .points-switch input:checked + .points-switch-track{background:var(--success)}
 .points-switch input:checked + .points-switch-track::after{transform:translateX(20px)}
 .points-switch input:focus-visible + .points-switch-track{outline:2px solid var(--gold);outline-offset:2px}
+
+/* Admin: header action group, order tabs, selected rows */
+.admin-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.admin-tabs{display:flex;gap:6px;margin:0 0 16px;border-bottom:1px solid var(--border);overflow-x:auto}
+.admin-tab{
+  display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--muted);font-family:var(--font-display);font-weight:600;font-size:1.02rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+  margin-bottom:-1px;white-space:nowrap;transition:color .2s,border-color .2s;
+}
+.admin-tab:hover{color:var(--white)}
+.admin-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab-count{font-family:var(--font-body);font-size:.72rem;font-weight:700;min-width:22px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--white);text-align:center}
+.admin-tab.active .tab-count{background:var(--gold);color:#111}
+tbody tr.row-selected{background:rgba(224,86,74,.08)}

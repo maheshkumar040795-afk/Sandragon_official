@@ -2,6 +2,7 @@ import { requireAdmin, setupLogoutButton } from "./admin-auth.js";
 import {
   db, collection, getDocs, doc, setDoc, deleteDoc, updateDoc, Timestamp
 } from "../../js/firebase-init.js";
+import { exportToExcel, fmtDate } from "./admin-export.js";
 
 requireAdmin(() => loadCoupons());
 setupLogoutButton();
@@ -121,4 +122,24 @@ document.getElementById('saveCouponBtn').addEventListener('click', async () => {
     console.error(err);
     alert('Could not save coupon. Check console for details.');
   }
+});
+
+
+// ---- Export Excel ----
+document.getElementById('exportCouponsBtn')?.addEventListener('click', async () => {
+  const snap = await getDocs(collection(db, 'coupons'));
+  const rows = snap.docs.map(d => {
+    const c = d.data();
+    const expired = c.expiresAt?.toDate && c.expiresAt.toDate() < new Date();
+    return {
+      'Code': d.id,
+      'Type': c.type === 'percent' ? 'Percent' : 'Flat amount',
+      'Value': c.type === 'percent' ? `${c.value}%` : Number(c.value) || 0,
+      'Min Order (₹)': Number(c.minOrder) || 0,
+      'Times Used': Number(c.usageCount) || 0,
+      'Expires': c.expiresAt ? fmtDate(c.expiresAt) : 'Never',
+      'Status': expired ? 'Expired' : (c.active ? 'Active' : 'Disabled')
+    };
+  });
+  exportToExcel('sandragon-coupons', [{ name: 'Coupons', rows }]);
 });

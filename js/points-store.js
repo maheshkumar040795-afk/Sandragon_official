@@ -11,18 +11,25 @@
 // Points are credited when the admin marks the order Confirmed.
 //
 // Redeeming: only on products the admin ticked "Points redeem applicable",
-// up to the value of those products in the cart.
+// and at most maxRedeemPercent of those products' value, rounded off
+// (5% of ₹449 = ₹22.45 → 22 points). The rest is paid normally, and that
+// payment earns new points like any other purchase.
 import { db, doc, getDoc, setDoc } from "./firebase-init.js";
 import { readCache, writeCache } from "./data-cache.js";
 
-export const DEFAULT_POINTS = { enabled: false, spendAmount: 100, earnPoints: 10, pointValue: 1 };
+export const DEFAULT_POINTS = { enabled: false, spendAmount: 100, earnPoints: 10, pointValue: 1, maxRedeemPercent: 5 };
 
 function normalize(d) {
   return {
     enabled: !!d?.enabled,
     spendAmount: Math.max(1, Number(d?.spendAmount) || DEFAULT_POINTS.spendAmount),
     earnPoints: Math.max(0, Number(d?.earnPoints) || 0),
-    pointValue: Math.max(0, Number(d?.pointValue) || 0)
+    pointValue: Math.max(0, Number(d?.pointValue) || 0),
+    // Most of an order's eligible value that points may pay for (e.g. 5%).
+    // Older settings without this field get the 5% default.
+    maxRedeemPercent: d?.maxRedeemPercent === undefined || d?.maxRedeemPercent === null || d?.maxRedeemPercent === ''
+      ? DEFAULT_POINTS.maxRedeemPercent
+      : Math.min(100, Math.max(0, Number(d.maxRedeemPercent) || 0))
   };
 }
 
@@ -55,6 +62,12 @@ export async function savePointsConfig(cfg) {
 export function pointsForAmount(amount, cfg) {
   if (!cfg?.enabled || !cfg.earnPoints) return 0;
   return Math.floor(Math.max(0, Number(amount) || 0) / cfg.spendAmount) * cfg.earnPoints;
+}
+
+// Rupee cap on points for an order: maxRedeemPercent of the eligible value, rounded off.
+export function redeemCapRupees(eligibleAmount, cfg) {
+  const pct = cfg?.maxRedeemPercent ?? DEFAULT_POINTS.maxRedeemPercent;
+  return Math.max(0, Math.round((Number(eligibleAmount) || 0) * pct / 100));
 }
 
 export function pointsToRupees(points, cfg) {

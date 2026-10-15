@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Purchase Points | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261015b">
+<link rel="stylesheet" href="../css/style.css?v=20261015c">
 </head>
 <body>
 
@@ -51,15 +51,27 @@
           <input type="number" id="pEarn" min="0" placeholder="e.g. 10">
         </div>
       </div>
-      <div class="form-group">
-        <label for="pValue">1 point is worth (₹)</label>
-        <input type="number" id="pValue" min="0" step="0.01" placeholder="e.g. 1">
+      <div class="price-fields">
+        <div class="form-group">
+          <label for="pValue">1 point is worth (₹)</label>
+          <input type="number" id="pValue" min="0" step="0.01" placeholder="e.g. 1">
+        </div>
+        <div class="form-group">
+          <label for="pMaxPct">Max redeem per order (% of eligible items)</label>
+          <input type="number" id="pMaxPct" min="1" max="100" placeholder="e.g. 5">
+        </div>
       </div>
 
       <div class="settings-preview" id="pointsPreview"></div>
 
       <button class="btn mt-20" id="savePointsBtn">Save Points Settings</button>
       <span id="saveStatus" class="stock-note" style="margin-left:14px"></span>
+    </div>
+
+    <div class="settings-card" style="margin-top:24px">
+      <h3 style="margin-bottom:8px">Customer points balances</h3>
+      <p class="stock-note mb-10">Download every customer with their current points balance and total points earned.</p>
+      <button class="btn small outline" id="exportCustomersBtn"><i class="fas fa-file-excel"></i> Export Excel</button>
     </div>
   </main>
 </div>

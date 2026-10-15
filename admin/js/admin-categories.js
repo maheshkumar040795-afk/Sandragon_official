@@ -4,6 +4,7 @@ import {
   orderBy, query, serverTimestamp
 } from "../../js/firebase-init.js";
 import { cloudinaryConfig } from "../../js/config.js";
+import { exportToExcel, fmtDate } from "./admin-export.js";
 
 requireAdmin(() => loadCategories());
 setupLogoutButton();
@@ -181,4 +182,24 @@ document.getElementById('saveCategoryBtn').addEventListener('click', async () =>
   } finally {
     btn.disabled = false;
   }
+});
+
+
+// ---- Export Excel (with how many products are in each category) ----
+document.getElementById('exportCategoriesBtn')?.addEventListener('click', async () => {
+  const [catSnap, prodSnap] = await Promise.all([
+    getDocs(query(collection(db, 'categories'), orderBy('createdAt', 'asc'))),
+    getDocs(collection(db, 'products'))
+  ]);
+  const counts = {};
+  prodSnap.docs.forEach(d => { const c = d.data().category; if (c) counts[c] = (counts[c] || 0) + 1; });
+  const rows = catSnap.docs.map(d => ({
+    'Category': d.data().name || '',
+    'Slug (ID)': d.id,
+    'Products': counts[d.id] || 0,
+    'Icon': d.data().icon || '',
+    'Logo URL': d.data().image || '',
+    'Created': fmtDate(d.data().createdAt)
+  }));
+  exportToExcel('sandragon-categories', [{ name: 'Categories', rows }]);
 });

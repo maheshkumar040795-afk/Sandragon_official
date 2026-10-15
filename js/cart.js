@@ -6,7 +6,7 @@ import { toast } from "./toast.js";
 import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
 import { cld, IMG_FALLBACK } from "./img.js";
 import { inr, mrpOf } from "./pricing.js";
-import { getPointsConfig, fetchPointsBalance, pointsForAmount, pointsToRupees, DEFAULT_POINTS } from "./points-store.js";
+import { getPointsConfig, fetchPointsBalance, pointsForAmount, pointsToRupees, redeemCapRupees, DEFAULT_POINTS } from "./points-store.js";
 
 // DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
 // payment gateway and creates the order directly — so the full customer → admin
@@ -130,11 +130,12 @@ function eligibleSubtotal() {
   return getCart().filter(i => i.pointsRedeemable).reduce((s, i) => s + i.price * i.qty, 0);
 }
 
-// How many points can go on this order: limited by the balance, by the value
-// of eligible items, and never more than what's left after the coupon.
+// How many points can go on this order: limited by the balance, by the
+// admin's max-redeem % of the eligible items' value (5% of ₹449 → ₹22),
+// and never more than what's left after the coupon.
 function maxRedeemablePoints(subtotal, couponDiscount) {
   if (!pointsConfig.enabled || !pointsConfig.pointValue || pointsBalance <= 0) return 0;
-  const cap = Math.min(eligibleSubtotal(), Math.max(0, subtotal - couponDiscount));
+  const cap = Math.min(redeemCapRupees(eligibleSubtotal(), pointsConfig), Math.max(0, subtotal - couponDiscount));
   return Math.max(0, Math.min(pointsBalance, Math.floor(cap / pointsConfig.pointValue)));
 }
 
@@ -172,7 +173,8 @@ function renderPointsBox(t) {
       <strong><i class="fas fa-coins"></i> Redeem your points here</strong>
       <span>You have <b>${pointsBalance.toLocaleString('en-IN')} points</b> (${inr(pointsToRupees(pointsBalance, pointsConfig))}).
         ${redeemOn ? `Using <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points: <b>-${inr(worth)}</b>.`
-                   : `Use <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points to save <b>${inr(worth)}</b> on eligible items.`}</span>
+                   : `Use <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points to save <b>${inr(worth)}</b> on eligible items.`}
+        <small>You can use points for up to ${pointsConfig.maxRedeemPercent}% of eligible items per order.</small></span>
     </div>
     <button type="button" class="btn small ${redeemOn ? 'outline' : ''}" id="redeemBtn">${redeemOn ? 'Remove' : 'Redeem'}</button>`;
   document.getElementById('redeemBtn').addEventListener('click', () => {
