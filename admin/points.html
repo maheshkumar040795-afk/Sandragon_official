@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Purchase Points | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261015">
+<link rel="stylesheet" href="../css/style.css?v=20261015b">
 </head>
 <body>
 
@@ -34,8 +34,10 @@
         balance when you mark their order <strong>Confirmed</strong>.</p>
 
       <div class="form-group">
-        <label style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" id="pEnabled" style="width:auto"> Points programme is ON
+        <label class="points-switch" for="pEnabled">
+          <input type="checkbox" id="pEnabled">
+          <span class="points-switch-track" aria-hidden="true"></span>
+          <span>Points programme: <strong id="pEnabledLabel">OFF</strong></span>
         </label>
       </div>
 

@@ -31,6 +31,8 @@ async function loadSettings() {
 
 function renderPreview() {
   const c = current();
+  const label = document.getElementById('pEnabledLabel');
+  if (label) { label.textContent = c.enabled ? 'ON' : 'OFF'; label.style.color = c.enabled ? 'var(--success)' : 'var(--danger)'; }
   if (!c.enabled) {
     preview.innerHTML = `<i class="fas fa-circle-pause gold"></i> Points are switched off. Customers won't earn or redeem points, and nothing about points is shown in the store.`;
     return;
@@ -55,12 +57,13 @@ document.getElementById('savePointsBtn').addEventListener('click', async () => {
     saveStatus.style.color = 'var(--danger)';
     return;
   }
+  if (!c.enabled && !confirm('The points programme is OFF.\n\nCustomers will NOT earn or redeem points while it is off.\n\nSave with points switched OFF?')) return;
   const btn = document.getElementById('savePointsBtn');
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
     await savePointsConfig(c);
-    saveStatus.textContent = 'Saved!';
+    saveStatus.textContent = c.enabled ? 'Saved! Points are ON.' : 'Saved. Points are OFF.';
     saveStatus.style.color = 'var(--success)';
   } catch (err) {
     console.error(err);
