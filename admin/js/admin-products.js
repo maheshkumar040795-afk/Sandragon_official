@@ -40,7 +40,8 @@ async function loadProducts() {
       <td><img src="${img}" style="width:44px;height:44px;object-fit:cover;border-radius:6px"></td>
       <td>${p.name}</td>
       <td>${p.category ? categoryName(p.category) || p.category : '—'}</td>
-      <td>₹${Number(p.price).toLocaleString('en-IN')}</td>
+      <td>₹${Number(p.price).toLocaleString('en-IN')}${Number(p.mrp) > Number(p.price) ? `<br><s class="stock-note">₹${Number(p.mrp).toLocaleString('en-IN')}</s> <span class="gold">${Math.round((p.mrp - p.price) / p.mrp * 100)}% off</span>` : ''}</td>
+      <td>${p.pointsRedeemable ? '<span class="badge confirmed">Redeem</span>' : '—'}</td>
       <td>${p.stock ?? '—'}</td>
       <td><span class="badge ${p.active ? 'confirmed' : 'placed'}">${p.active ? 'Live' : 'Hidden'}</span></td>
       <td>
@@ -74,6 +75,26 @@ async function deleteProduct(id) {
   loadProducts();
 }
 
+// Live "40% off" preview while the admin types the two prices.
+function updatePriceHint() {
+  const hint = document.getElementById('priceHint');
+  if (!hint) return;
+  const mrp = Number(document.getElementById('fMrp').value);
+  const price = Number(document.getElementById('fPrice').value);
+  if (mrp && price && price < mrp) {
+    const pct = Math.round((mrp - price) / mrp * 100);
+    hint.innerHTML = `Customers will see <s>₹${mrp.toLocaleString('en-IN')}</s> <strong>₹${price.toLocaleString('en-IN')}</strong> <strong class="gold">↓${pct}% off</strong>`;
+    hint.style.color = '';
+  } else if (mrp && price && price >= mrp) {
+    hint.textContent = 'Discount price must be lower than the actual price.';
+    hint.style.color = 'var(--danger)';
+  } else {
+    hint.textContent = 'Leave Discount Price empty to sell at the actual price.';
+    hint.style.color = '';
+  }
+}
+['fMrp', 'fPrice'].forEach(id => document.getElementById(id)?.addEventListener('input', updatePriceHint));
+
 function resetModal() {
   editingId = null;
   uploadedImages = [];
@@ -84,11 +105,14 @@ function resetModal() {
   document.getElementById('fDescription').value = '';
   if (categorySelect) categorySelect.value = '';
   document.getElementById('fPrice').value = '';
+  document.getElementById('fMrp').value = '';
+  document.getElementById('fPointsRedeemable').checked = false;
   document.getElementById('fStock').value = '';
   document.getElementById('fVendorName').value = '';
   document.getElementById('fVendorPhone').value = '';
   document.getElementById('fActive').checked = true;
   document.getElementById('fCouponExcluded').checked = false;
+  updatePriceHint();
   renderImagePreview();
   renderOptionGroups();
 }
@@ -118,12 +142,17 @@ async function openModal(id) {
       document.getElementById('fName').value = p.name || '';
       document.getElementById('fDescription').value = p.description || '';
       if (categorySelect) categorySelect.value = p.category || '';
-      document.getElementById('fPrice').value = p.price || '';
+      // Older products only have a single price: show it as the actual price.
+      const hasDiscount = Number(p.mrp) > Number(p.price);
+      document.getElementById('fMrp').value = hasDiscount ? p.mrp : (p.price || '');
+      document.getElementById('fPrice').value = hasDiscount ? p.price : '';
+      document.getElementById('fPointsRedeemable').checked = !!p.pointsRedeemable;
       document.getElementById('fStock').value = p.stock ?? '';
       document.getElementById('fVendorName').value = p.vendorName || '';
       document.getElementById('fVendorPhone').value = p.vendorPhone || '';
       document.getElementById('fActive').checked = !!p.active;
       document.getElementById('fCouponExcluded').checked = !!p.couponExcluded;
+      updatePriceHint();
       uploadedImages = p.images || [];
       options = optionsFromProduct(p);
       renderImagePreview();
@@ -255,9 +284,14 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
   renderOptionGroups();
 
   const name = document.getElementById('fName').value.trim();
-  const price = Number(document.getElementById('fPrice').value);
+  const mrpInput = Number(document.getElementById('fMrp').value);
+  const discountInput = Number(document.getElementById('fPrice').value);
   const category = categorySelect ? categorySelect.value : '';
-  if (!name || !price) { alert('Name and price are required.'); return; }
+  if (!name || !mrpInput) { alert('Name and actual price are required.'); return; }
+  if (discountInput && discountInput >= mrpInput) { alert('Discount price must be lower than the actual price (or leave it empty).'); return; }
+  // `price` is always what the customer pays; `mrp` is only set when discounted.
+  const price = discountInput || mrpInput;
+  const mrp = discountInput ? mrpInput : null;
   if (!category) { alert('Please select a category.'); return; }
 
   const payload = {
@@ -265,13 +299,15 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     description: document.getElementById('fDescription').value.trim(),
     category,
     price,
+    mrp,
     stock: document.getElementById('fStock').value === '' ? null : Number(document.getElementById('fStock').value),
     vendorName: document.getElementById('fVendorName').value.trim(),
     vendorPhone: document.getElementById('fVendorPhone').value.trim(),
     images: uploadedImages,
     options: options.filter(o => o.values.length > 0),
     active: document.getElementById('fActive').checked,
-    couponExcluded: document.getElementById('fCouponExcluded').checked
+    couponExcluded: document.getElementById('fCouponExcluded').checked,
+    pointsRedeemable: document.getElementById('fPointsRedeemable').checked
   };
 
   try {

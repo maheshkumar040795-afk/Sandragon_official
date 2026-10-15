@@ -50,8 +50,10 @@ function orderTotalsHtml(o) {
     <div class="order-totals">
       <div><span>Subtotal</span><span>₹${Number(o.subtotal).toLocaleString('en-IN')}</span></div>
       ${hasDiscount ? `<div><span>Coupon (${escapeHtml(o.coupon.code)})</span><span class="gold">-₹${Number(o.coupon.discountAmount).toLocaleString('en-IN')}</span></div>` : ''}
+      ${o.points?.redeemed > 0 ? `<div><span>Points redeemed (${o.points.redeemed})</span><span class="gold">-₹${Number(o.points.redeemValue).toLocaleString('en-IN')}</span></div>` : ''}
       <div><span>Delivery</span><span>${shipping > 0 ? '₹' + shipping.toLocaleString('en-IN') : 'Free'}</span></div>
       <div class="order-totals-final"><span>Total Paid</span><span>₹${Number(o.totalAmount).toLocaleString('en-IN')}</span></div>
+      ${o.points?.earned > 0 ? `<div class="order-points"><i class="fas fa-coins"></i> ${o.points.credited ? `Earned ${o.points.earned} points` : `${o.points.earned} points will be added when this order is confirmed`}</div>` : ''}
     </div>
   `;
 }

@@ -1,6 +1,8 @@
 import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-init.js";
 import { getCachedProduct, getCachedProducts } from "./products-store.js";
 import { cld, imgHtml } from "./img.js";
+import { priceHtml, mrpOf, inr } from "./pricing.js";
+import { getCachedPointsConfig, getPointsConfig, pointsForAmount, pointsToRupees } from "./points-store.js";
 import { addToCart } from "./cart-store.js";
 import { categoryName } from "./categories.js";
 import { ensureCustomer } from "./account-gate.js";
@@ -38,7 +40,7 @@ function normalizeOptions(p) {
 // Fields that change what the page shows. If a fresh Firestore read differs
 // from the cached copy on any of these, the page re-renders with fresh data.
 function visibleSignature(p) {
-  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active]);
+  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active, p.mrp, p.pointsRedeemable]);
 }
 
 async function loadProduct() {
@@ -104,7 +106,9 @@ function render() {
         ${p.category ? `<a class="pd-cat" id="pdCat" href="index.html?category=${encodeURIComponent(p.category)}">${escapeHtml(categoryName(p.category) || p.category)}</a>` : ''}
         <h1>${escapeHtml(p.name)}</h1>
         ${starsHtml(avg, Number(p.ratingCount) || 0, 'md')}
-        <div class="pd-price">₹${Number(p.price).toLocaleString('en-IN')}</div>
+        <div class="pd-price">${priceHtml(p, 'lg')}</div>
+        ${mrpOf(p) ? `<div class="pd-save">You save ${inr(mrpOf(p) - Number(p.price))}</div>` : ''}
+        <div class="pd-points" id="pdPoints"></div>
         <p class="pd-desc">${escapeHtml(p.description || '')}</p>
 
         ${options.map((opt, gi) => `
@@ -163,7 +167,7 @@ function render() {
   // Wishlist
   document.getElementById('pdWishBtn').addEventListener('click', () => {
     const btn = document.getElementById('pdWishBtn');
-    const added = toggleWishlist({ productId, id: productId, name: p.name, image: images[0], price: Number(p.price) });
+    const added = toggleWishlist({ productId, id: productId, name: p.name, image: images[0], price: Number(p.price), mrp: mrpOf(p) });
     btn.classList.toggle('active', added);
     btn.querySelector('i').className = `fa-heart ${added ? 'fas' : 'far'}`;
     toast(added ? `Added "${p.name}" to your wishlist` : `Removed "${p.name}" from your wishlist`, 'wishlist');
@@ -207,6 +211,8 @@ function render() {
       name: p.name,
       image: images[0],
       price: Number(p.price),
+      mrp: mrpOf(p),
+      pointsRedeemable: !!p.pointsRedeemable,
       // Kept for backward compatibility with older cart/order display code
       // that reads these two fields directly; `options` carries everything.
       color: selectedOptions['Color'] || null,
@@ -227,7 +233,7 @@ function render() {
 
   // When the page is being prerendered in the background (the shopper only
   // hovered a link), don't record a "view" until they actually open it.
-  const recordView = () => trackView({ id: productId, name: p.name, image: images[0], price: Number(p.price) });
+  const recordView = () => trackView({ id: productId, name: p.name, image: images[0], price: Number(p.price), mrp: mrpOf(p) });
   if (document.prerendering) {
     document.addEventListener('prerenderingchange', recordView, { once: true });
   } else {
@@ -235,6 +241,7 @@ function render() {
   }
   if (recentSection) renderRecentlyViewed(recentSection, productId);
 
+  renderPointsNote(p);
   loadRelated(p);
   if (!reviewsLoaded) { reviewsLoaded = true; loadReviews(); }
 }
@@ -250,8 +257,28 @@ function relatedCardHtml(rid, rp) {
     <div class="info">
       <div class="name">${escapeHtml(rp.name)}</div>
       ${starsHtml(rAvg, Number(rp.ratingCount) || 0, 'sm')}
-      <div class="price">₹${Number(rp.price).toLocaleString('en-IN')}</div>
+      ${priceHtml(rp)}
     </div>`;
+}
+
+// "Earn N points" and "Points can be used on this product", when the admin
+// has the points programme switched on.
+function pointsNoteHtml(p, cfg) {
+  if (!cfg?.enabled) return '';
+  const earn = pointsForAmount(Number(p.price), cfg);
+  const parts = [];
+  if (earn > 0) parts.push(`Earn <strong>${earn} points</strong> (worth ${inr(pointsToRupees(earn, cfg))}) on this item`);
+  if (p.pointsRedeemable) parts.push('Pay with your points on this product');
+  if (!parts.length) return '';
+  return `<i class="fas fa-coins"></i><span>${parts.join('<br>')}</span>`;
+}
+
+async function renderPointsNote(p) {
+  const el = () => document.getElementById('pdPoints');
+  const cached = getCachedPointsConfig();
+  if (cached && el()) el().innerHTML = pointsNoteHtml(p, cached);
+  const fresh = await getPointsConfig();
+  if (el() && productData === p) el().innerHTML = pointsNoteHtml(p, fresh);
 }
 
 let relatedRenderedFor = null;

@@ -2,6 +2,7 @@ import { getWishlist, removeFromWishlist } from "./wishlist-store.js";
 import { addToCart } from "./cart-store.js";
 import { toast } from "./toast.js";
 import { imgHtml } from "./img.js";
+import { priceHtml } from "./pricing.js";
 
 const grid = document.getElementById('wishlistGrid');
 
@@ -23,7 +24,7 @@ function render() {
       <a href="product.html?id=${p.id}" class="img-wrap">${imgHtml(p.image, { alt: p.name, widths: [300, 450, 600], sizes: '(max-width: 600px) 48vw, 280px' })}</a>
       <div class="info">
         <a href="product.html?id=${p.id}" class="name">${escapeHtml(p.name)}</a>
-        <div class="price">₹${Number(p.price).toLocaleString('en-IN')}</div>
+        ${priceHtml(p)}
         <button class="btn small mt-10" style="width:100%" data-addcart="${p.id}"><i class="fas fa-shopping-bag"></i> Add to Cart</button>
       </div>
     </div>
