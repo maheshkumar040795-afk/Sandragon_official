@@ -1,5 +1,7 @@
 import { requireAdmin, setupLogoutButton } from "./admin-auth.js";
-import { getPointsConfig, savePointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
+import { db, collection, getDocs } from "../../js/firebase-init.js";
+import { exportToExcel, fmtDate } from "./admin-export.js";
+import { getPointsConfig, savePointsConfig, pointsForAmount, pointsToRupees, redeemCapRupees } from "../../js/points-store.js";
 
 requireAdmin(() => loadSettings());
 setupLogoutButton();
@@ -8,6 +10,7 @@ const enabledChk = document.getElementById('pEnabled');
 const spendInput = document.getElementById('pSpend');
 const earnInput = document.getElementById('pEarn');
 const valueInput = document.getElementById('pValue');
+const maxPctInput = document.getElementById('pMaxPct');
 const preview = document.getElementById('pointsPreview');
 const saveStatus = document.getElementById('saveStatus');
 
@@ -16,7 +19,8 @@ function current() {
     enabled: enabledChk.checked,
     spendAmount: Number(spendInput.value) || 0,
     earnPoints: Number(earnInput.value) || 0,
-    pointValue: Number(valueInput.value) || 0
+    pointValue: Number(valueInput.value) || 0,
+    maxRedeemPercent: Number(maxPctInput.value) || 0
   };
 }
 
@@ -26,6 +30,7 @@ async function loadSettings() {
   spendInput.value = cfg.spendAmount;
   earnInput.value = cfg.earnPoints;
   valueInput.value = cfg.pointValue;
+  maxPctInput.value = cfg.maxRedeemPercent;
   renderPreview();
 }
 
@@ -37,23 +42,28 @@ function renderPreview() {
     preview.innerHTML = `<i class="fas fa-circle-pause gold"></i> Points are switched off. Customers won't earn or redeem points, and nothing about points is shown in the store.`;
     return;
   }
-  if (!c.spendAmount || !c.earnPoints || !c.pointValue) {
-    preview.innerHTML = `<i class="fas fa-circle-info gold"></i> Fill in all three numbers to see an example.`;
+  if (!c.spendAmount || !c.earnPoints || !c.pointValue || !c.maxRedeemPercent) {
+    preview.innerHTML = `<i class="fas fa-circle-info gold"></i> Fill in all four numbers to see an example.`;
     return;
   }
-  const example = 1250;
-  const earned = pointsForAmount(example, { ...c });
-  preview.innerHTML = `<i class="fas fa-circle-check gold"></i> Every <strong>₹${c.spendAmount.toLocaleString('en-IN')}</strong> spent earns <strong>${c.earnPoints} points</strong>, and <strong>1 point = ₹${c.pointValue}</strong>.<br>
-    Example: an order of ₹${example.toLocaleString('en-IN')} earns <strong>${earned} points</strong>, worth <strong>₹${pointsToRupees(earned, c).toLocaleString('en-IN')}</strong> off a later order.`;
+  const cfg = { ...c, enabled: true };
+  const item = 449;
+  const capRs = redeemCapRupees(item, cfg);
+  const usePts = Math.floor(capRs / c.pointValue);
+  const useRs = pointsToRupees(usePts, cfg);
+  const pay = item - useRs;
+  const earned = pointsForAmount(pay, cfg);
+  preview.innerHTML = `<i class="fas fa-circle-check gold"></i> Every <strong>₹${c.spendAmount.toLocaleString('en-IN')}</strong> spent earns <strong>${c.earnPoints} points</strong>, <strong>1 point = ₹${c.pointValue}</strong>, and points can pay for up to <strong>${c.maxRedeemPercent}%</strong> of eligible items.<br>
+    Example: a customer with 550 points buys a ₹${item} eligible product. They can redeem <strong>${usePts} points</strong> (${c.maxRedeemPercent}% of ₹${item}, rounded), pay <strong>₹${pay}</strong>, and earn <strong>${earned} new points</strong> on that ₹${pay}.`;
 }
 
-[spendInput, earnInput, valueInput].forEach(el => el.addEventListener('input', renderPreview));
+[spendInput, earnInput, valueInput, maxPctInput].forEach(el => el.addEventListener('input', renderPreview));
 enabledChk.addEventListener('change', renderPreview);
 
 document.getElementById('savePointsBtn').addEventListener('click', async () => {
   const c = current();
-  if (c.enabled && (!c.spendAmount || !c.earnPoints || !c.pointValue)) {
-    saveStatus.textContent = 'Fill in all three numbers, or switch the programme off.';
+  if (c.enabled && (!c.spendAmount || !c.earnPoints || !c.pointValue || !c.maxRedeemPercent)) {
+    saveStatus.textContent = 'Fill in all four numbers, or switch the programme off.';
     saveStatus.style.color = 'var(--danger)';
     return;
   }
@@ -74,4 +84,26 @@ document.getElementById('savePointsBtn').addEventListener('click', async () => {
     btn.textContent = 'Save Points Settings';
     setTimeout(() => { saveStatus.textContent = ''; }, 3500);
   }
+});
+
+// ---- Export Excel: customers and their points ----
+document.getElementById('exportCustomersBtn')?.addEventListener('click', async () => {
+  const cfg = current();
+  const snap = await getDocs(collection(db, 'customers'));
+  const rows = snap.docs.map(d => {
+    const c = d.data();
+    const bal = Number(c.pointsBalance) || 0;
+    return {
+      'Name': c.name || '',
+      'Phone': c.phone || d.id,
+      'Email': c.email || '',
+      'Address': c.address || '',
+      'Pincode': c.pincode || '',
+      'Points Balance': bal,
+      'Balance Worth (₹)': pointsToRupees(bal, cfg),
+      'Total Points Earned': Number(c.pointsEarnedTotal) || 0,
+      'Joined': fmtDate(c.createdAt)
+    };
+  }).sort((a, b) => b['Points Balance'] - a['Points Balance']);
+  exportToExcel('sandragon-customers-points', [{ name: 'Customers', rows }]);
 });

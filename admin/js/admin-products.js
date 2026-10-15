@@ -5,6 +5,7 @@ import {
 } from "../../js/firebase-init.js";
 import { cloudinaryConfig } from "../../js/config.js";
 import { CATEGORIES, categoryName } from "../../js/categories.js";
+import { exportToExcel, fmtDate } from "./admin-export.js";
 
 requireAdmin(() => loadProducts());
 setupLogoutButton();
@@ -322,4 +323,35 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     console.error(err);
     alert('Could not save product. Check console for details.');
   }
+});
+
+
+// ---- Export Excel: every product with prices, stock and flags ----
+document.getElementById('exportProductsBtn')?.addEventListener('click', async () => {
+  const snap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
+  const rows = snap.docs.map(d => {
+    const p = d.data();
+    const mrp = Number(p.mrp) > Number(p.price) ? Number(p.mrp) : '';
+    const opts = Array.isArray(p.options) ? p.options.map(o => `${o.name}: ${(o.values || []).join('/')}`).join('; ') : '';
+    return {
+      'Product': p.name || '',
+      'Category': p.category ? (categoryName(p.category) || p.category) : '',
+      'Actual Price (₹)': mrp || Number(p.price) || 0,
+      'Selling Price (₹)': Number(p.price) || 0,
+      'Discount %': mrp ? Math.round((mrp - p.price) / mrp * 100) : 0,
+      'Stock': p.stock ?? 'Unlimited',
+      'Visible in Store': p.active ? 'Yes' : 'No',
+      'Points Redeem Applicable': p.pointsRedeemable ? 'Yes' : 'No',
+      'Coupon Not Applicable': p.couponExcluded ? 'Yes' : 'No',
+      'Options': opts,
+      'Rating': Number(p.ratingCount) ? (Number(p.ratingSum) / Number(p.ratingCount)).toFixed(1) : '',
+      'Reviews': Number(p.ratingCount) || 0,
+      'Vendor': p.vendorName || '',
+      'Vendor Phone': p.vendorPhone || '',
+      'Added On': fmtDate(p.createdAt),
+      'Image URL': (p.images && p.images[0]) || '',
+      'Product ID': d.id
+    };
+  });
+  exportToExcel('sandragon-products', [{ name: 'Products', rows }]);
 });

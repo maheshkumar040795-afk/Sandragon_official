@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Categories | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261015b">
+<link rel="stylesheet" href="../css/style.css?v=20261015c">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -27,7 +27,10 @@
   <main class="admin-main">
     <div class="admin-header">
       <h2>Categories</h2>
-      <button class="btn" id="addCategoryBtn"><i class="fas fa-plus"></i> Add Category</button>
+      <div class="admin-actions">
+        <button class="btn small outline" id="exportCategoriesBtn"><i class="fas fa-file-excel"></i> Export Excel</button>
+        <button class="btn" id="addCategoryBtn"><i class="fas fa-plus"></i> Add Category</button>
+      </div>
     </div>
     <p class="stock-note mb-10">These categories drive the "Category" dropdown when adding a product, the storefront's category filter pills, and the header's category menu — add, rename, or remove one here and it updates everywhere automatically.</p>
     <table>

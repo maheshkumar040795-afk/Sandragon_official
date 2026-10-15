@@ -1,7 +1,8 @@
 import { requireAdmin, setupLogoutButton } from "./admin-auth.js";
 import {
-  db, collection, getDocs, doc, updateDoc, orderBy, query, serverTimestamp, runTransaction
+  db, collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, serverTimestamp, runTransaction
 } from "../../js/firebase-init.js";
+import { exportToExcel, fmtDate } from "./admin-export.js";
 import { business } from "../../js/config.js";
 import { getPointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
 
@@ -56,19 +57,55 @@ function itemVariantLabel(i) {
   return parts.join(', ');
 }
 
+// Tabs: New = just placed, Confirmed = confirmed / packed / shipped, Delivered.
+const TAB_STATUSES = {
+  new: ['placed'],
+  confirmed: ['confirmed', 'packed', 'shipped'],
+  delivered: ['delivered']
+};
+let activeTab = 'new';
+const selected = new Set();
+
+function tabOf(o) {
+  const st = o.status || 'placed';
+  return Object.keys(TAB_STATUSES).find(t => TAB_STATUSES[t].includes(st)) || 'new';
+}
+
+function ordersInTab(tab = activeTab) {
+  return ordersCache.filter(o => tabOf(o) === tab);
+}
+
 async function loadOrders() {
-  tbody.innerHTML = `<tr><td colspan="6" class="text-center">Loading...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading...</td></tr>`;
   const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
   const snap = await getDocs(q);
   ordersCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Forget selections for orders that no longer exist.
+  [...selected].forEach(id => { if (!ordersCache.some(o => o.id === id)) selected.delete(id); });
+  renderOrders();
+}
 
-  if (!ordersCache.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center">No orders yet.</td></tr>`;
+function renderOrders() {
+  document.getElementById('countNew').textContent = ordersInTab('new').length;
+  document.getElementById('countConfirmed').textContent = ordersInTab('confirmed').length;
+  document.getElementById('countDelivered').textContent = ordersInTab('delivered').length;
+  document.querySelectorAll('#orderTabs .admin-tab').forEach(t => {
+    const on = t.dataset.tab === activeTab;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+
+  const rows = ordersInTab();
+  if (!rows.length) {
+    const label = { new: 'new', confirmed: 'confirmed', delivered: 'delivered' }[activeTab];
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center">No ${label} orders.</td></tr>`;
+    updateSelectionUi();
     return;
   }
 
-  tbody.innerHTML = ordersCache.map(o => `
-    <tr>
+  tbody.innerHTML = rows.map(o => `
+    <tr class="${selected.has(o.id) ? 'row-selected' : ''}">
+      <td><input type="checkbox" class="order-check" data-id="${o.id}" ${selected.has(o.id) ? 'checked' : ''} aria-label="Select order #${o.id.slice(-8).toUpperCase()}" style="width:auto"></td>
       <td>#${o.id.slice(-8).toUpperCase()}</td>
       <td>${o.customer?.name || ''}<br><span class="stock-note">${o.customer?.phone || ''}</span></td>
       <td>₹${Number(o.totalAmount).toLocaleString('en-IN')}</td>
@@ -81,7 +118,117 @@ async function loadOrders() {
   tbody.querySelectorAll('[data-view]').forEach(btn =>
     btn.addEventListener('click', () => openOrder(btn.dataset.view))
   );
+  tbody.querySelectorAll('.order-check').forEach(chk =>
+    chk.addEventListener('change', () => {
+      if (chk.checked) selected.add(chk.dataset.id); else selected.delete(chk.dataset.id);
+      chk.closest('tr').classList.toggle('row-selected', chk.checked);
+      updateSelectionUi();
+    })
+  );
+  updateSelectionUi();
 }
+
+function updateSelectionUi() {
+  const inTab = ordersInTab().map(o => o.id);
+  const chosen = inTab.filter(id => selected.has(id));
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.disabled = chosen.length === 0;
+  btn.innerHTML = `<i class="fas fa-trash"></i> Delete Selected${chosen.length ? ` (${chosen.length})` : ''}`;
+  const all = document.getElementById('selectAllOrders');
+  all.checked = inTab.length > 0 && chosen.length === inTab.length;
+  all.indeterminate = chosen.length > 0 && chosen.length < inTab.length;
+}
+
+document.getElementById('orderTabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.admin-tab');
+  if (!tab) return;
+  activeTab = tab.dataset.tab;
+  selected.clear(); // a delete only ever affects what you can see in this tab
+  renderOrders();
+});
+
+document.getElementById('selectAllOrders').addEventListener('change', (e) => {
+  ordersInTab().forEach(o => (e.target.checked ? selected.add(o.id) : selected.delete(o.id)));
+  renderOrders();
+});
+
+document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
+  const ids = ordersInTab().map(o => o.id).filter(id => selected.has(id));
+  if (!ids.length) return;
+  const credited = ordersCache.filter(o => ids.includes(o.id) && o.points?.credited && o.points.earned > 0).length;
+  const msg = `Delete ${ids.length} order${ids.length > 1 ? 's' : ''}? This cannot be undone.` +
+    (credited ? `\n\n${credited} of them already gave points to the customer. Deleting the order does not take those points back.` : '') +
+    `\n\nTip: click "Export Excel" first if you want a copy.`;
+  if (!confirm(msg)) return;
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.disabled = true;
+  btn.innerHTML = 'Deleting...';
+  const failed = [];
+  for (const id of ids) {
+    try {
+      await deleteDoc(doc(db, 'orders', id));
+      selected.delete(id);
+    } catch (err) {
+      console.error('Delete failed for', id, err);
+      failed.push(id);
+    }
+  }
+  if (failed.length) alert(`${failed.length} order(s) could not be deleted. Check the console for details.`);
+  await loadOrders();
+});
+
+function orderRow(o) {
+  return {
+    'Order ID': '#' + o.id.slice(-8).toUpperCase(),
+    'Placed On': fmtDate(o.createdAt),
+    'Status': statusLabels[o.status] || o.status || '',
+    'Customer': o.customer?.name || '',
+    'Phone': o.customer?.phone || '',
+    'Email': o.customer?.email || '',
+    'Address': o.customer?.address || '',
+    'Pincode': o.customer?.pincode || '',
+    'Items': (o.items || []).map(i => `${i.name}${itemVariantLabel(i) ? ' (' + itemVariantLabel(i) + ')' : ''} x${i.qty}`).join('; '),
+    'Subtotal (₹)': Number(o.subtotal) || 0,
+    'Coupon': o.coupon?.code || '',
+    'Coupon Discount (₹)': Number(o.coupon?.discountAmount) || 0,
+    'Points Redeemed': Number(o.points?.redeemed) || 0,
+    'Points Discount (₹)': Number(o.points?.redeemValue) || 0,
+    'Delivery (₹)': Number(o.shippingCharge) || 0,
+    'Total Paid (₹)': Number(o.totalAmount) || 0,
+    'Points Earned': o.points?.credited ? Number(o.points.earned) || 0 : 0,
+    'Payment Mode': o.paymentMode || '',
+    'Payment ID': o.paymentId || '',
+    'Courier': o.courierName || '',
+    'AWB / Tracking': o.awbNumber || ''
+  };
+}
+
+function itemRows(list) {
+  return list.flatMap(o => (o.items || []).map(i => ({
+    'Order ID': '#' + o.id.slice(-8).toUpperCase(),
+    'Placed On': fmtDate(o.createdAt),
+    'Product': i.name,
+    'Options': itemVariantLabel(i),
+    'Qty': Number(i.qty) || 0,
+    'Price (₹)': Number(i.price) || 0,
+    'Line Total (₹)': (Number(i.price) || 0) * (Number(i.qty) || 0),
+    'Vendor': i.vendorName || '',
+    'Customer': o.customer?.name || '',
+    'Phone': o.customer?.phone || ''
+  })));
+}
+
+document.getElementById('exportOrdersBtn').addEventListener('click', () => {
+  // Selected orders if any are ticked, otherwise every order in the current tab.
+  const inTab = ordersInTab();
+  const chosen = inTab.filter(o => selected.has(o.id));
+  const list = chosen.length ? chosen : inTab;
+  const tabName = { new: 'New', confirmed: 'Confirmed', delivered: 'Delivered' }[activeTab];
+  exportToExcel(`sandragon-orders-${activeTab}`, [
+    { name: `${tabName} Orders`, rows: list.map(orderRow) },
+    { name: 'Order Items', rows: itemRows(list) }
+  ]);
+});
 
 function buildConfirmMessage(o) {
   const itemLines = o.items.map(i => {

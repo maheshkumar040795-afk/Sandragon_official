@@ -268,7 +268,7 @@ function pointsNoteHtml(p, cfg) {
   const earn = pointsForAmount(Number(p.price), cfg);
   const parts = [];
   if (earn > 0) parts.push(`Earn <strong>${earn} points</strong> (worth ${inr(pointsToRupees(earn, cfg))}) on this item`);
-  if (p.pointsRedeemable) parts.push('Pay with your points on this product');
+  if (p.pointsRedeemable) parts.push(`Use your points for up to ${cfg.maxRedeemPercent}% of this price`);
   if (!parts.length) return '';
   return `<i class="fas fa-coins"></i><span>${parts.join('<br>')}</span>`;
 }

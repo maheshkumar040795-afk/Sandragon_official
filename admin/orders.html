@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Orders | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261015b">
+<link rel="stylesheet" href="../css/style.css?v=20261015c">
 </head>
 <body>
 
@@ -26,13 +26,25 @@
   <main class="admin-main">
     <div class="admin-header">
       <h2>Orders</h2>
+      <div class="admin-actions">
+        <button class="btn small outline" id="exportOrdersBtn"><i class="fas fa-file-excel"></i> Export Excel</button>
+        <button class="btn small danger" id="deleteSelectedBtn" disabled><i class="fas fa-trash"></i> Delete Selected</button>
+      </div>
+    </div>
+    <div class="admin-tabs" role="tablist" id="orderTabs">
+      <button type="button" role="tab" class="admin-tab active" data-tab="new">New <span class="tab-count" id="countNew">0</span></button>
+      <button type="button" role="tab" class="admin-tab" data-tab="confirmed">Confirmed <span class="tab-count" id="countConfirmed">0</span></button>
+      <button type="button" role="tab" class="admin-tab" data-tab="delivered">Delivered <span class="tab-count" id="countDelivered">0</span></button>
     </div>
     <table>
       <thead>
-        <tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Placed</th><th>Actions</th></tr>
+        <tr>
+          <th style="width:36px"><input type="checkbox" id="selectAllOrders" aria-label="Select all orders in this tab" style="width:auto"></th>
+          <th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Placed</th><th>Actions</th>
+        </tr>
       </thead>
       <tbody id="ordersTableBody">
-        <tr><td colspan="6" class="text-center">Loading...</td></tr>
+        <tr><td colspan="7" class="text-center">Loading...</td></tr>
       </tbody>
     </table>
   </main>
