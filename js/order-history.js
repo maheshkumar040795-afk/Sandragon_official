@@ -266,7 +266,7 @@ function openCancelModal(id, o, customer, onDone) {
       outcome = await requestCancellation(id, reason);
     } catch (err) {
       console.error('Cancel failed', err);
-      outcome = { ok: false, code: err?.code || '' };
+      outcome = { ok: false, code: err?.code || 'unknown', detail: err?.message || String(err) };
     }
     if (outcome.ok) {
       overlay.querySelector('.modal').innerHTML = `
@@ -286,7 +286,8 @@ function openCancelModal(id, o, customer, onDone) {
       // The WhatsApp request already went out, so the store can cancel it.
       overlay.querySelector('.modal').innerHTML = `
         <h3><i class="fab fa-whatsapp" style="color:#25D366"></i> Cancellation request sent</h3>
-        <p class="account-sub">We couldn't cancel order #${id.slice(-8).toUpperCase()} automatically, so your cancellation request has been sent to SANDRAGON on WhatsApp. They will cancel it and confirm with you.</p>
+        <p class="account-sub">We couldn't save your cancellation request online, so it has been sent to SANDRAGON on WhatsApp instead. They will cancel it and confirm with you.</p>
+        <p class="stock-note">Technical detail for the store: ${escapeHtml(outcome.code || outcome.reason || 'unknown')}${outcome.code === 'permission-denied' ? ' (the Firestore rules on the server do not allow "cancel_requested" yet)' : ''}</p>
         <a class="btn outline" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Open WhatsApp again</a>
         <button class="btn mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
       document.getElementById('closeCancelBtn').addEventListener('click', () => overlay.classList.remove('open'));
