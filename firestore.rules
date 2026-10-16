@@ -61,13 +61,14 @@ service cloud.firestore {
       allow read: if true;
       allow update, delete: if isAdmin();
 
-      // Customer cancels from Order History: only before the order is
-      // shipped, only to "cancelled", and only these fields may change.
+      // Customer asks to cancel from Order History: only before the order is
+      // shipped, only to "cancel_requested" (the admin confirms the actual
+      // cancellation, which restores stock and points), and only these fields.
       allow update: if !isAdmin() &&
         resource.data.status in ['placed', 'confirmed', 'packed'] &&
-        request.resource.data.status == 'cancelled' &&
+        request.resource.data.status == 'cancel_requested' &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'cancelledAt', 'cancelledBy', 'cancelReason', 'pointsReversed']);
+          .hasOnly(['status', 'cancelRequestedFrom', 'cancelRequestedAt', 'cancelReason']);
 
       // Customer return request: only on a delivered order, within 3 days
       // of delivery, and only the `returns` field may change.

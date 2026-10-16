@@ -13,6 +13,7 @@ const STEP_LABELS = {
   packed: 'Packed',
   shipped: 'Shipped',
   delivered: 'Delivered',
+  cancel_requested: 'Cancel requested',
   cancelled: 'Cancelled'
 };
 
@@ -63,7 +64,11 @@ function orderTotalsHtml(o) {
       ${o.points?.redeemed > 0 ? `<div><span>Points redeemed (${o.points.redeemed})</span><span class="gold">-₹${Number(o.points.redeemValue).toLocaleString('en-IN')}</span></div>` : ''}
       <div><span>Delivery</span><span>${shipping > 0 ? '₹' + shipping.toLocaleString('en-IN') : 'Free'}</span></div>
       <div class="order-totals-final"><span>Total Paid</span><span>₹${Number(o.totalAmount).toLocaleString('en-IN')}</span></div>
-      ${o.points?.earned > 0 ? `<div class="order-points"><i class="fas fa-coins"></i> ${o.points.credited ? `Earned ${o.points.earned} points` : `${o.points.earned} points will be added when this order is confirmed`}</div>` : ''}
+      ${o.points?.earned > 0 ? `<div class="order-points"><i class="fas fa-coins"></i> ${
+        o.status === 'cancelled' && o.cancelSettled ? `${o.points.earned} points earned on this order were removed (order cancelled)`
+        : o.status === 'cancelled' || o.status === 'cancel_requested' ? `${o.points.earned} points will be removed when the cancellation is confirmed`
+        : o.points.credited ? `Earned ${o.points.earned} points`
+        : `${o.points.earned} points will be added when this order is confirmed`}</div>` : ''}
     </div>
   `;
 }
@@ -131,6 +136,7 @@ function orderCardHtml(id, o) {
       </div>
       ${orderTotalsHtml(o)}
       ${o.status === 'cancelled' ? `<div class="cancel-note"><i class="fas fa-circle-xmark"></i> Cancelled${o.cancelledAt?.toDate ? ' on ' + formatDate(o.cancelledAt) : ''}${o.cancelReason ? ': ' + escapeHtml(o.cancelReason) : ''}.${cancelRefundNote(o)}</div>` : ''}
+      ${o.status === 'cancel_requested' ? `<div class="cancel-note pending"><i class="fas fa-hourglass-half"></i> Cancellation requested${o.cancelRequestedAt?.toDate ? ' on ' + formatDate(o.cancelRequestedAt) : ''}. Waiting for SANDRAGON to confirm.</div>` : ''}
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn small outline view-tracking-btn" data-id="${id}">
           <i class="fas fa-truck"></i> View Tracking Status
@@ -149,7 +155,7 @@ function orderCardHtml(id, o) {
 }
 
 function stepperHtml(status) {
-  if (status === 'cancelled') return '';
+  if (status === 'cancelled' || status === 'cancel_requested') return '';
   const currentIndex = STEPS.indexOf(status);
   return `
     <div class="track-stepper">
@@ -176,6 +182,7 @@ function openTrackingModal(id, o) {
       <h3>Order #${id.slice(-8).toUpperCase()}</h3>
       ${stepperHtml(o.status)}
       ${o.status === 'cancelled' ? `<div class="cancel-note mt-20"><i class="fas fa-circle-xmark"></i> This order was cancelled.</div>` : ''}
+      ${o.status === 'cancel_requested' ? `<div class="cancel-note pending mt-20"><i class="fas fa-hourglass-half"></i> Cancellation requested. Waiting for SANDRAGON to confirm.</div>` : ''}
       <div class="order-items-list mt-20">
         ${(o.items || []).map(i => itemLineHtml(i)).join('')}
       </div>
@@ -192,9 +199,10 @@ function openTrackingModal(id, o) {
 
 function cancelRefundNote(o) {
   const parts = [];
+  if (o.cancelSettled && Number(o.pointsReversed) > 0) parts.push(` ${o.pointsReversed} earned points were removed from your balance.`);
   const paidOnline = o.paymentMode && !/demo/i.test(o.paymentMode) && !/cash|cod/i.test(o.paymentMode);
   if (paidOnline) parts.push(' Your refund will go back to your original payment method.');
-  if (Number(o.points?.redeemed) > 0) parts.push(` Your ${o.points.redeemed} points will be returned to your balance.`);
+  if (Number(o.points?.redeemed) > 0) parts.push(o.cancelSettled ? ` The ${o.points.redeemed} points you used were returned to your balance.` : ` Your ${o.points.redeemed} points will be returned to your balance.`);
   return parts.join('');
 }
 
@@ -252,22 +260,22 @@ function openCancelModal(id, o, customer, onDone) {
     // store gets the request even if saving the cancellation fails.
     window.open(waLink(msg), '_blank', 'noopener');
     btn.disabled = true;
-    btn.textContent = 'Cancelling...';
+    btn.textContent = 'Sending request...';
     let outcome;
     try {
-      outcome = await cancelOrderWithPoints(id, reason);
+      outcome = await requestCancellation(id, reason);
     } catch (err) {
       console.error('Cancel failed', err);
       outcome = { ok: false, code: err?.code || '' };
     }
     if (outcome.ok) {
       overlay.querySelector('.modal').innerHTML = `
-        <h3><i class="fas fa-circle-check" style="color:var(--success)"></i> Order cancelled</h3>
-        <p class="account-sub">Order #${id.slice(-8).toUpperCase()} has been cancelled and SANDRAGON has been sent the details on WhatsApp.${outcome.pointsRemoved ? ` The ${outcome.pointsRemoved} points earned on this order have been removed from your balance.` : ''}${cancelRefundNote(o)}</p>
+        <h3><i class="fas fa-circle-check" style="color:var(--success)"></i> Cancellation requested</h3>
+        <p class="account-sub">Your request to cancel order #${id.slice(-8).toUpperCase()} has been sent to SANDRAGON (also on WhatsApp). Once they confirm, the order will show as <strong>Cancelled</strong> here.${o.points?.credited && o.points.earned > 0 ? ` The ${o.points.earned} points earned on this order will be removed when it is cancelled.` : ''}</p>
         <a class="btn outline" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Open WhatsApp again</a>
         <button class="btn mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
       document.getElementById('closeCancelBtn').addEventListener('click', () => overlay.classList.remove('open'));
-      toast('Your order has been cancelled.', 'success');
+      toast('Cancellation request sent.', 'success');
       onDone();
       return;
     }
@@ -290,34 +298,23 @@ function openCancelModal(id, o, customer, onDone) {
   });
 }
 
-// Cancels the order and takes back the points it earned, in one transaction:
-// either both happen or neither. Redeemed points are given back by the
-// admin when the cancellation is settled (a shopper can never add points).
-async function cancelOrderWithPoints(id, reason) {
+// Sends a cancellation REQUEST: the order moves to "Cancel requested" and
+// shows up in Admin -> Orders -> Cancelled for the store to verify. Stock and
+// points are only changed when the admin confirms the cancellation.
+async function requestCancellation(id, reason) {
   const orderRef = doc(db, 'orders', id);
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(orderRef);
     if (!snap.exists()) return { ok: false, reason: 'missing' };
     const o = snap.data();
     if (!CANCELLABLE.includes(o.status)) return { ok: false, reason: o.status === 'shipped' || o.status === 'delivered' ? 'shipped' : 'closed' };
-    const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
-    const remove = Math.max(0, earned - (Number(o.pointsReversed) || 0));
-    let removed = 0;
-    if (remove > 0 && o.customer?.phone) {
-      const custRef = doc(db, 'customers', o.customer.phone);
-      const cust = await tx.get(custRef);
-      const bal = cust.exists() ? Number(cust.data().pointsBalance) || 0 : 0;
-      removed = Math.min(bal, remove);
-      if (removed > 0) tx.update(custRef, { pointsBalance: bal - removed });
-    }
     tx.update(orderRef, {
-      status: 'cancelled',
-      cancelledAt: serverTimestamp(),
-      cancelledBy: 'customer',
-      cancelReason: reason,
-      pointsReversed: (Number(o.pointsReversed) || 0) + removed
+      status: 'cancel_requested',
+      cancelRequestedFrom: o.status,
+      cancelRequestedAt: serverTimestamp(),
+      cancelReason: reason
     });
-    return { ok: true, pointsRemoved: removed };
+    return { ok: true };
   });
 }
 

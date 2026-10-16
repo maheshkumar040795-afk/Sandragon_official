@@ -49,7 +49,7 @@ let currentOrderId = null;
 
 const statusLabels = {
   placed: 'Placed', confirmed: 'Confirmed', packed: 'Packed',
-  shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled'
+  shipped: 'Shipped', delivered: 'Delivered', cancel_requested: 'Cancel requested', cancelled: 'Cancelled'
 };
 
 // Shows every selected option (Color, Size, Flavour, Contains, or any
@@ -70,7 +70,7 @@ const TAB_STATUSES = {
   new: ['placed'],
   confirmed: ['confirmed', 'packed', 'shipped'],
   delivered: ['delivered'],
-  cancelled: ['cancelled']
+  cancelled: ['cancel_requested', 'cancelled']
 };
 let activeTab = 'new';
 const selected = new Set();
@@ -100,6 +100,10 @@ function renderOrders() {
   document.getElementById('countConfirmed').textContent = ordersInTab('confirmed').length;
   document.getElementById('countDelivered').textContent = ordersInTab('delivered').length;
   document.getElementById('countCancelled').textContent = ordersInTab('cancelled').length;
+  // Highlight cancellation requests still waiting for the admin to verify.
+  const toVerify = ordersCache.filter(o => o.status === 'cancel_requested').length;
+  const verifyEl = document.getElementById('countToVerify');
+  if (verifyEl) { verifyEl.textContent = `${toVerify} to verify`; verifyEl.hidden = toVerify === 0; }
   document.querySelectorAll('#orderTabs .admin-tab').forEach(t => {
     const on = t.dataset.tab === activeTab;
     t.classList.toggle('active', on);
@@ -120,7 +124,7 @@ function renderOrders() {
       <td>#${o.id.slice(-8).toUpperCase()}</td>
       <td>${o.customer?.name || ''}<br><span class="stock-note">${o.customer?.phone || ''}</span></td>
       <td>₹${Number(o.totalAmount).toLocaleString('en-IN')}</td>
-      <td><span class="badge ${o.status}">${statusLabels[o.status] || o.status}</span>${o.returns && Object.keys(o.returns).length ? `<br><span class="badge returned"><i class="fas fa-rotate-left"></i> Return requested (${Object.keys(o.returns).length})</span>` : ''}${o.status === 'cancelled' && !o.cancelSettled ? '<br><span class="stock-note" style="color:var(--danger)">Needs settling</span>' : ''}</td>
+      <td><span class="badge ${o.status}">${statusLabels[o.status] || o.status}</span>${o.returns && Object.keys(o.returns).length ? `<br><span class="badge returned"><i class="fas fa-rotate-left"></i> Return requested (${Object.keys(o.returns).length})</span>` : ''}${o.status === 'cancelled' && !o.cancelSettled ? '<br><span class="stock-note" style="color:var(--danger)">Needs settling</span>' : ''}${o.status === 'cancel_requested' ? '<br><span class="stock-note" style="color:var(--danger)">Needs your verification</span>' : ''}</td>
       <td>${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-IN') : '—'}</td>
       <td><button class="btn small outline" data-view="${o.id}">View</button></td>
     </tr>
@@ -324,6 +328,37 @@ function returnsPanelHtml(o) {
     <div class="stock-note mt-10">The customer was sent to WhatsApp with these details. Reply there to arrange pickup. Rejecting a return gives back the points that were taken.</div></div>`;
 }
 
+// A customer asked to cancel: the admin verifies, then confirms or rejects.
+function cancelRequestPanelHtml(o) {
+  const when = o.cancelRequestedAt?.toDate ? o.cancelRequestedAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const redeemed = Number(o.points?.redeemed) || 0;
+  const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+  const effects = [
+    'put the items back in stock',
+    earned ? `take back the ${earned} points this order earned` : '',
+    redeemed ? `return the ${redeemed} points the customer used` : ''
+  ].filter(Boolean).join(', ');
+  return `<div class="coupon-msg mt-10 cancel-request-box" style="display:block">
+      <strong><i class="fas fa-hourglass-half"></i> Customer requested cancellation</strong>${when ? ` on ${when}` : ''}.
+      ${o.cancelReason ? `<br>Reason: ${o.cancelReason}` : ''}
+      <br>Status before request: ${statusLabels[o.cancelRequestedFrom] || o.cancelRequestedFrom || 'Placed'}.
+    </div>
+    <div class="settings-preview mt-10">Confirming will cancel the order, ${effects}, and show <strong>Cancelled</strong> in the customer's Order History.
+      <div class="mt-10" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn small danger" id="confirmCancelReqBtn"><i class="fas fa-check"></i> Confirm Cancellation</button>
+        <button type="button" class="btn small outline" id="rejectCancelReqBtn">Reject Request</button>
+      </div></div>`;
+}
+
+function buildCancelledMessage(o) {
+  const lines = [`Hi ${o.customer?.name || ''}, your SANDRAGON order #${o.id.slice(-8).toUpperCase()} has been cancelled as requested.`];
+  if (Number(o.pointsReversed) > 0) lines.push(`${o.pointsReversed} points earned on this order have been removed from your balance.`);
+  if (Number(o.points?.redeemed) > 0) lines.push(`The ${o.points.redeemed} points you used have been returned to your balance.`);
+  if (o.paymentMode && !/demo|cash|cod/i.test(o.paymentMode)) lines.push('Your refund will be processed to your original payment method.');
+  lines.push('We hope to serve you again soon.');
+  return lines.join('\n');
+}
+
 function cancelPanelHtml(o) {
   const by = o.cancelledBy === 'customer' ? 'the customer' : 'admin';
   const when = o.cancelledAt?.toDate ? o.cancelledAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -336,7 +371,8 @@ function cancelPanelHtml(o) {
   ].filter(Boolean).join(', ');
   return `<div class="coupon-msg err mt-10" style="display:block"><i class="fas fa-circle-xmark"></i> Cancelled by ${by}${when ? ' on ' + when : ''}${o.cancelReason ? `. Reason: ${o.cancelReason}` : ''}.</div>
     ${o.cancelSettled
-      ? `<div class="settings-preview mt-10"><i class="fas fa-circle-check gold"></i> Settled: stock restored${redeemed ? `, ${redeemed} redeemed points returned to the customer` : ''}${Number(o.pointsReversed) ? `, ${o.pointsReversed} earned points taken back` : ''}.</div>`
+      ? `<div class="settings-preview mt-10"><i class="fas fa-circle-check gold"></i> Settled: stock restored${redeemed ? `, ${redeemed} redeemed points returned to the customer` : ''}${Number(o.pointsReversed) ? `, ${o.pointsReversed} earned points taken back` : ''}.
+          ${o.customer?.phone ? `<div class="mt-10"><a class="btn small outline" target="_blank" rel="noopener" href="https://wa.me/91${o.customer.phone}?text=${encodeURIComponent(buildCancelledMessage(o))}"><i class="fab fa-whatsapp"></i> Inform customer on WhatsApp</a></div>` : ''}</div>`
       : `<div class="settings-preview mt-10">Settle this cancellation to ${todo}.
           <div class="mt-10"><button type="button" class="btn small" id="settleCancelBtn"><i class="fas fa-rotate"></i> Settle Cancellation</button></div></div>`}`;
 }
@@ -511,11 +547,11 @@ function openOrder(id) {
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
     <div class="stock-note">Payment ID: ${o.paymentId}</div>
-    ${o.status === 'cancelled' ? cancelPanelHtml(o) : pointsStatusHtml(o)}
+    ${o.status === 'cancel_requested' ? cancelRequestPanelHtml(o) : o.status === 'cancelled' ? cancelPanelHtml(o) : pointsStatusHtml(o)}
     ${returnsPanelHtml(o)}
   `;
   // A cancelled order has nothing left to confirm, pack or ship.
-  document.getElementById('orderSteps').hidden = o.status === 'cancelled';
+  document.getElementById('orderSteps').hidden = o.status === 'cancelled' || o.status === 'cancel_requested';
 
   document.getElementById('confirmPreview').textContent = buildConfirmMessage(o);
 
@@ -571,6 +607,42 @@ document.getElementById('modalOrderBody').addEventListener('click', async (e) =>
     decide.disabled = true;
     try { await decideReturn(currentOrderId, idx, accept ? 'accepted' : 'rejected'); }
     catch (err) { console.error(err); alert('Could not update the return. Check the console for details.'); }
+    await loadOrders();
+    openOrder(currentOrderId);
+    return;
+  }
+  const confirmReq = e.target.closest('#confirmCancelReqBtn');
+  if (confirmReq) {
+    if (!confirm('Confirm this cancellation? Stock and points will be updated and the customer will see the order as Cancelled.')) return;
+    confirmReq.disabled = true;
+    try {
+      await updateDoc(doc(db, 'orders', currentOrderId), {
+        status: 'cancelled', cancelledAt: serverTimestamp(), cancelledBy: 'customer', cancelConfirmedBy: 'admin'
+      });
+      const o = ordersCache.find(x => x.id === currentOrderId);
+      if (o) o.status = 'cancelled';
+      await settleCancellation(currentOrderId);
+    } catch (err) {
+      console.error(err);
+      alert('Could not confirm the cancellation. Check the console for details.');
+    }
+    await loadOrders();
+    openOrder(currentOrderId);
+    return;
+  }
+  const rejectReq = e.target.closest('#rejectCancelReqBtn');
+  if (rejectReq) {
+    const o = ordersCache.find(x => x.id === currentOrderId);
+    if (!confirm('Reject this cancellation request? The order goes back to its previous status.')) return;
+    rejectReq.disabled = true;
+    try {
+      await updateDoc(doc(db, 'orders', currentOrderId), {
+        status: o?.cancelRequestedFrom || 'placed', cancelRequestRejectedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Could not reject the request. Check the console for details.');
+    }
     await loadOrders();
     openOrder(currentOrderId);
     return;
