@@ -9,8 +9,8 @@ const DEFAULT_CONFIG = { freeThreshold: 499, flatCharge: 50 };
 
 let cached = null;
 
-export async function getShippingConfig() {
-  if (cached) return cached;
+export async function getShippingConfig({ fresh = false } = {}) {
+  if (cached && !fresh) return cached;
   try {
     const snap = await getDoc(doc(db, 'settings', 'shipping'));
     if (snap.exists()) {

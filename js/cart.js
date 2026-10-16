@@ -1,6 +1,6 @@
 import { db, collection, addDoc, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, runTransaction } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
-import { razorpayConfig, functionsBaseUrl, business } from "./config.js";
+import { razorpayConfig, paymentServerUrl, business } from "./config.js";
 import { getCustomer, saveCustomer } from "./customer-store.js";
 import { toast } from "./toast.js";
 import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
@@ -8,11 +8,13 @@ import { cld, IMG_FALLBACK } from "./img.js";
 import { inr, mrpOf } from "./pricing.js";
 import { getPointsConfig, fetchPointsBalance, pointsForAmount, pointsToRupees, redeemCapRupees, DEFAULT_POINTS } from "./points-store.js";
 
-// DEMO MODE: while Razorpay keys are still placeholders, checkout skips the real
-// payment gateway and creates the order directly — so the full customer → admin
-// flow can be tested before Razorpay is configured. Remove automatically once
-// real keys are set in config.js.
-const DEMO_MODE = razorpayConfig.keyId === "YOUR_RAZORPAY_KEY_ID" || !razorpayConfig.keyId;
+// DEMO MODE: while the Razorpay Key ID or the payment server address in
+// config.js is still a placeholder, checkout skips the real payment gateway
+// and creates the order directly, so the full customer → admin flow can be
+// tested. Switches off by itself once both are filled in.
+const PAY_URL = String(paymentServerUrl || '').replace(/\/+$/, '');
+const DEMO_MODE = !razorpayConfig.keyId || razorpayConfig.keyId === "YOUR_RAZORPAY_KEY_ID" || !/^https:\/\//.test(PAY_URL);
+const PAY_LABEL = '<i class="fas fa-lock"></i> Pay Securely with Razorpay';
 
 if (DEMO_MODE) {
   document.addEventListener('DOMContentLoaded', () => {
@@ -435,44 +437,102 @@ async function handlePayment() {
   }
 
   payBtn.textContent = 'Preparing checkout...';
+  const resetPayBtn = () => { payBtn.disabled = false; payBtn.innerHTML = PAY_LABEL; };
 
   try {
-    // 1. Ask Cloud Function to create a Razorpay order (keeps key_secret server-side)
-    const orderRes = await fetch(`${functionsBaseUrl}/createRazorpayOrder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount })
+    if (typeof window.Razorpay !== 'function') {
+      throw new UserFacingError('The payment window could not load. Please check your internet connection and try again.');
+    }
+    // 1. The payment server works out the total again from the live store
+    //    prices, coupon, points and delivery settings, and creates the
+    //    Razorpay order for that amount. The browser's figure is never trusted.
+    const created = await callPaymentServer('/create-order', {
+      items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
+      couponCode: appliedCoupon?.code || '',
+      redeemPoints: redeemOn && t.pointsUsed > 0,
+      phone,
+      name
     });
-    const orderData = await orderRes.json();
-    if (!orderData.id) throw new Error('Could not create payment order');
+    const st = created.totals;
+    if (Math.round(st.total) !== Math.round(amount)) {
+      // Something changed since the page loaded (a price, delivery charge or
+      // points balance). Refresh and let the shopper see the new total first.
+      await Promise.all([
+        refreshCartFromStore(),
+        getPointsConfig().then(c => { pointsConfig = c; }),
+        getShippingConfig({ fresh: true }).then(c => { shippingConfig = c; })
+      ]);
+      if (redeemOn) { pointsBalance = await fetchPointsBalance(phone); pointsBalancePhone = phone; }
+      updateSummary();
+      throw new UserFacingError(`The order total has been updated to ${inr(st.total)}. Please check it and tap Pay again.`);
+    }
+    const serverPoints = pointsConfig.enabled ? {
+      ...pointsMeta,
+      redeemed: st.pointsUsed,
+      redeemValue: st.pointsValue,
+      earned: st.pointsEarned
+    } : pointsMeta;
 
     // 2. Open Razorpay Checkout
-    const rzp = new Razorpay({
-      key: razorpayConfig.keyId,
-      amount: orderData.amount,
-      currency: razorpayConfig.currency,
+    const rzp = new window.Razorpay({
+      key: created.keyId || razorpayConfig.keyId,
+      amount: created.amount,
+      currency: created.currency || razorpayConfig.currency,
       name: business.name,
       description: 'Order Payment',
-      order_id: orderData.id,
+      order_id: created.orderId,
       prefill: { name, email, contact: phone },
+      notes: { phone },
       theme: { color: '#c9a227' },
       handler: async function (response) {
-        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, subtotal, shippingCharge, amount, couponMeta, pointsMeta);
+        payBtn.textContent = 'Confirming payment...';
+        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, st.subtotal, st.shippingCharge, st.total, couponMeta, serverPoints, resetPayBtn);
       },
-      modal: {
-        ondismiss: function () {
-          payBtn.disabled = false;
-          payBtn.innerHTML = '<i class="fas fa-lock"></i> Pay Securely with Razorpay';
-        }
-      }
+      modal: { ondismiss: resetPayBtn }
+    });
+    rzp.on('payment.failed', (resp) => {
+      const reason = resp?.error?.description || 'The payment did not go through.';
+      toast(`${reason} No money was taken. You can try again.`, 'error', 6000);
     });
     rzp.open();
   } catch (err) {
     console.error(err);
-    toast('Something went wrong starting the payment. Please try again.', 'error');
-    payBtn.disabled = false;
-    payBtn.innerHTML = '<i class="fas fa-lock"></i> Pay Securely with Razorpay';
+    if (err.code === 'COUPON_INVALID') {
+      appliedCoupon = null;
+      const msg = document.getElementById('couponMsg');
+      if (msg) msg.style.display = 'none';
+      updateSummary();
+    } else if (err.code === 'ITEM_UNAVAILABLE' || err.code === 'OUT_OF_STOCK') {
+      refreshCartFromStore();
+    }
+    toast(err instanceof UserFacingError ? err.message : 'Something went wrong starting the payment. Please try again.', 'error', 6000);
+    resetPayBtn();
   }
+}
+
+class UserFacingError extends Error {
+  constructor(message, code) { super(message); this.code = code; }
+}
+
+// Talks to the payment server (Cloudflare Worker). Errors it explains
+// (coupon expired, item out of stock...) are shown to the shopper as is.
+async function callPaymentServer(path, body) {
+  let res;
+  try {
+    res = await fetch(PAY_URL + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    throw new UserFacingError('Could not reach the payment server. Please check your internet connection and try again.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 400 && data.error) throw new UserFacingError(data.error, data.code);
+    throw new Error(data.detail || data.error || `Payment server HTTP ${res.status}`);
+  }
+  return data;
 }
 
 // Saves the order and, if points were redeemed, deducts them from the
@@ -594,17 +654,26 @@ async function bumpCouponUsage() {
   }
 }
 
-async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, shippingCharge, amount, couponMeta, pointsMeta) {
+async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, shippingCharge, amount, couponMeta, pointsMeta, resetPayBtn) {
+  const paymentId = razorpayResponse.razorpay_payment_id;
+  // 3. Check Razorpay's signature on the payment server. If the server
+  //    can't be reached, the money has still been taken, so the order is
+  //    saved anyway and marked for the admin to check.
+  let payment = { gateway: 'razorpay', verified: false };
   try {
-    // 3. Verify payment signature server-side (Cloud Function)
-    const verifyRes = await fetch(`${functionsBaseUrl}/verifyRazorpayPayment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(razorpayResponse)
-    });
-    const verifyData = await verifyRes.json();
-    if (!verifyData.valid) throw new Error('Payment verification failed');
+    const v = await callPaymentServer('/verify', razorpayResponse);
+    if (!v.valid) {
+      toast(`We couldn't confirm this payment. If money was taken, please message us on WhatsApp with payment ID ${paymentId}.`, 'error', 10000);
+      resetPayBtn?.();
+      return;
+    }
+    payment = { gateway: 'razorpay', verified: true, amountPaid: v.amountPaid ?? amount, method: v.method || '', status: v.status || '' };
+  } catch (err) {
+    console.warn('Payment verification could not run; saving order for the admin to check', err);
+    payment.checkNote = 'Not verified at checkout (payment server unreachable). Check in Razorpay.';
+  }
 
+  try {
     // 4. Save order in Firestore — this is what the admin portal reads
     const orderId = await saveOrderWithPoints({
       customer,
@@ -614,9 +683,10 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, sh
       coupon: couponMeta,
       points: pointsMeta,
       totalAmount: amount,
-      paymentId: razorpayResponse.razorpay_payment_id,
+      paymentId,
       razorpayOrderId: razorpayResponse.razorpay_order_id,
       paymentMode: 'Online (Razorpay)',
+      payment,
       status: 'placed',
       vendorShared: false,
       awbNumber: '',
@@ -630,7 +700,7 @@ async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, sh
     window.location.href = `order-success.html?orderId=${orderId}`;
   } catch (err) {
     console.error(err);
-    toast('Payment succeeded but we could not save your order. Please contact us on WhatsApp with your payment ID: ' + razorpayResponse.razorpay_payment_id, 'error', 8000);
+    toast('Payment succeeded but we could not save your order. Please contact us on WhatsApp with your payment ID: ' + paymentId, 'error', 12000);
   }
 }
 

@@ -21,13 +21,17 @@ export const cloudinaryConfig = {
 
 // ---- Razorpay ----
 export const razorpayConfig = {
-  keyId: "YOUR_RAZORPAY_KEY_ID", // public key, safe on client
-  // key_secret NEVER goes here — it lives only in the Cloud Function (functions/index.js)
+  keyId: "YOUR_RAZORPAY_KEY_ID", // rzp_test_... or rzp_live_... (public key, safe on client)
+  // The Key Secret NEVER goes here. It lives only in the Cloudflare Worker's
+  // settings (see payment-worker/worker.js and the README).
   currency: "INR"
 };
 
-// ---- Cloud Functions base URL (after `firebase deploy --only functions`) ----
-export const functionsBaseUrl = "https://YOUR_REGION-YOUR_PROJECT.cloudfunctions.net";
+// ---- Payment server (Cloudflare Worker) ----
+// The worker's address, e.g. "https://sandragon-pay.yourname.workers.dev"
+// (no slash at the end). While this or the Key ID above is still a
+// placeholder, checkout runs in demo mode with no real payment.
+export const paymentServerUrl = "YOUR_WORKER_URL";
 
 // ---- Business details ----
 export const business = {
