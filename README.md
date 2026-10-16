@@ -1,5 +1,12 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## Cancellation needs admin confirmation (Oct 16, 2026)
+
+- Customer **Cancel Order** now sends a *request*: WhatsApp opens with the drafted message and the order shows **Cancel requested** (Order History says "Waiting for SANDRAGON to confirm"). Nothing changes in stock or points yet.
+- Admin → Orders → **Cancelled** tab shows requests with an "N to verify" badge. Open one → **Confirm Cancellation** (status becomes Cancelled for the customer, stock restored, earned points removed, used points returned) or **Reject Request** (order goes back to its previous status and the Cancel button reappears for the customer).
+- After confirming, **Inform customer on WhatsApp** sends a drafted "your order has been cancelled" message.
+- Re-publish `firestore.rules` (customers may now only set `cancel_requested`).
+
 ## Cancel via WhatsApp & points on cancel/return (Oct 16, 2026)
 
 - **Cancel** now always opens WhatsApp with a drafted cancellation message (order, items, total, reason, name, phone). If the online cancel can't be saved (e.g. rules not yet published), the customer is told the request was sent and the store cancels it from Admin → Orders → **Cancel Order**.

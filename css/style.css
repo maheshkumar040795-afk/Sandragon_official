@@ -1249,7 +1249,7 @@ body.light-theme footer{background:var(--bg)}
 .summary-save{margin-top:12px;padding:8px 12px;border-radius:10px;background:rgba(23,128,61,.1);color:#17803d;font-weight:600;font-size:.9rem;text-align:center}
 .summary-earn{margin-top:8px;font-size:.84rem;color:var(--muted);text-align:center}
 .summary-earn i{color:#a8841a}
-.order-points{margin-top:8px;font-size:.84rem;color:#8a6d12;font-weight:600}
+.order-totals > .order-points{display:block!important;margin-top:8px;font-size:.84rem;color:#8a6d12;font-weight:600}
 
 /* Profile: points card */
 .points-card{
@@ -1319,3 +1319,8 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 .return-actions{display:flex;gap:6px;flex-shrink:0}
 .return-status.accepted{color:#17803d}
 .return-status.rejected{color:#b3392e}
+.badge.cancel_requested{background:rgba(240,119,79,.2);color:#f0774f}
+.tab-alert{font-family:var(--font-body);font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--danger);color:#fff;letter-spacing:0;text-transform:none}
+.tab-alert[hidden]{display:none}
+.cancel-note.pending{background:rgba(240,119,79,.1);color:#b4532a}
+.cancel-request-box{background:rgba(240,119,79,.12);color:#f3a27f;border:1px solid rgba(240,119,79,.35);line-height:1.6}
