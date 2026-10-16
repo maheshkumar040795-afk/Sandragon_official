@@ -1,4 +1,4 @@
-import { db, collection, getDocs, getDoc, doc, updateDoc, query, where, serverTimestamp } from "./firebase-init.js";
+import { db, collection, getDocs, getDoc, doc, updateDoc, query, where, serverTimestamp, runTransaction } from "./firebase-init.js";
 import { business } from "./config.js";
 import { getCustomer } from "./customer-store.js";
 import { ensureCustomer } from "./account-gate.js";
@@ -84,7 +84,8 @@ function returnDeadline(o) {
 function returnControlHtml(orderId, o, i, idx) {
   const req = o.returns?.[idx];
   if (req) {
-    return `<div class="return-status"><i class="fas fa-rotate-left"></i> Return requested: ${escapeHtml(req.reason)}${req.note ? ` (${escapeHtml(req.note)})` : ''}</div>`;
+    const label = req.status === 'accepted' ? 'Return accepted' : req.status === 'rejected' ? 'Return not accepted' : 'Return requested';
+    return `<div class="return-status ${req.status || ''}"><i class="fas fa-rotate-left"></i> ${label}: ${escapeHtml(req.reason)}${req.note ? ` (${escapeHtml(req.note)})` : ''}${Number(req.pointsRemoved) && req.status !== 'rejected' ? ` · ${req.pointsRemoved} points removed` : ''}</div>`;
   }
   if (o.status !== 'delivered') return '';
   if (i.returnNotApplicable) return `<div class="return-status muted"><i class="fas fa-ban"></i> Return not applicable for this product</div>`;
@@ -241,45 +242,82 @@ function openCancelModal(id, o, customer, onDone) {
     const btn = document.getElementById('confirmCancelBtn');
     const errEl = document.getElementById('cancelError');
     const reason = document.getElementById('cancelReason').value;
+    const msg = `Hi SANDRAGON, please cancel my order #${id.slice(-8).toUpperCase()}.\n\n` +
+      `Items:\n${(o.items || []).map(i => `- ${i.name}${itemVariantLabel(i) ? ' (' + itemVariantLabel(i) + ')' : ''} x${i.qty}`).join('\n')}\n` +
+      `Total: Rs.${Number(o.totalAmount).toLocaleString('en-IN')}` +
+      (reason ? `\nReason: ${reason}` : '') +
+      `\n\nName: ${customer?.name || o.customer?.name || ''}\nPhone: ${o.customer?.phone || ''}`;
+    // Open WhatsApp straight away, while this is still the shopper's tap
+    // (browsers block pop-ups opened after waiting on the network). The
+    // store gets the request even if saving the cancellation fails.
+    window.open(waLink(msg), '_blank', 'noopener');
     btn.disabled = true;
     btn.textContent = 'Cancelling...';
+    let outcome;
     try {
-      // Re-check the latest status: it may have shipped since the page loaded.
-      const fresh = await getDoc(doc(db, 'orders', id));
-      const status = fresh.exists() ? fresh.data().status : '';
-      if (!CANCELLABLE.includes(status)) {
-        errEl.textContent = status === 'shipped' || status === 'delivered'
-          ? 'This order has already been shipped, so it can no longer be cancelled. Please contact us on WhatsApp.'
-          : 'This order can no longer be cancelled.';
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-xmark"></i> Yes, cancel order';
-        return;
-      }
-      await updateDoc(doc(db, 'orders', id), {
-        status: 'cancelled',
-        cancelledAt: serverTimestamp(),
-        cancelledBy: 'customer',
-        cancelReason: reason
-      });
-      const msg = `Hi SANDRAGON, I have cancelled my order #${id.slice(-8).toUpperCase()}.` +
-        (reason ? `\nReason: ${reason}` : '') +
-        `\nName: ${customer?.name || o.customer?.name || ''}\nPhone: ${o.customer?.phone || ''}`;
+      outcome = await cancelOrderWithPoints(id, reason);
+    } catch (err) {
+      console.error('Cancel failed', err);
+      outcome = { ok: false, code: err?.code || '' };
+    }
+    if (outcome.ok) {
       overlay.querySelector('.modal').innerHTML = `
         <h3><i class="fas fa-circle-check" style="color:var(--success)"></i> Order cancelled</h3>
-        <p class="account-sub">Order #${id.slice(-8).toUpperCase()} has been cancelled.${cancelRefundNote(o)}</p>
-        <a class="btn" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Inform SANDRAGON on WhatsApp</a>
-        <button class="btn outline mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
+        <p class="account-sub">Order #${id.slice(-8).toUpperCase()} has been cancelled and SANDRAGON has been sent the details on WhatsApp.${outcome.pointsRemoved ? ` The ${outcome.pointsRemoved} points earned on this order have been removed from your balance.` : ''}${cancelRefundNote(o)}</p>
+        <a class="btn outline" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Open WhatsApp again</a>
+        <button class="btn mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
       document.getElementById('closeCancelBtn').addEventListener('click', () => overlay.classList.remove('open'));
       toast('Your order has been cancelled.', 'success');
       onDone();
-    } catch (err) {
-      console.error(err);
-      errEl.textContent = "Couldn't cancel right now. Please try again or contact us on WhatsApp.";
-      errEl.style.display = 'block';
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-xmark"></i> Yes, cancel order';
+      return;
     }
+    if (outcome.reason === 'shipped') {
+      errEl.textContent = 'This order has already been shipped, so it can no longer be cancelled online. Your message has been sent to SANDRAGON on WhatsApp.';
+    } else {
+      // Most often: the store's database rules don't allow online cancel yet.
+      // The WhatsApp request already went out, so the store can cancel it.
+      overlay.querySelector('.modal').innerHTML = `
+        <h3><i class="fab fa-whatsapp" style="color:#25D366"></i> Cancellation request sent</h3>
+        <p class="account-sub">We couldn't cancel order #${id.slice(-8).toUpperCase()} automatically, so your cancellation request has been sent to SANDRAGON on WhatsApp. They will cancel it and confirm with you.</p>
+        <a class="btn outline" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Open WhatsApp again</a>
+        <button class="btn mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
+      document.getElementById('closeCancelBtn').addEventListener('click', () => overlay.classList.remove('open'));
+      return;
+    }
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-xmark"></i> Yes, cancel order';
+  });
+}
+
+// Cancels the order and takes back the points it earned, in one transaction:
+// either both happen or neither. Redeemed points are given back by the
+// admin when the cancellation is settled (a shopper can never add points).
+async function cancelOrderWithPoints(id, reason) {
+  const orderRef = doc(db, 'orders', id);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(orderRef);
+    if (!snap.exists()) return { ok: false, reason: 'missing' };
+    const o = snap.data();
+    if (!CANCELLABLE.includes(o.status)) return { ok: false, reason: o.status === 'shipped' || o.status === 'delivered' ? 'shipped' : 'closed' };
+    const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+    const remove = Math.max(0, earned - (Number(o.pointsReversed) || 0));
+    let removed = 0;
+    if (remove > 0 && o.customer?.phone) {
+      const custRef = doc(db, 'customers', o.customer.phone);
+      const cust = await tx.get(custRef);
+      const bal = cust.exists() ? Number(cust.data().pointsBalance) || 0 : 0;
+      removed = Math.min(bal, remove);
+      if (removed > 0) tx.update(custRef, { pointsBalance: bal - removed });
+    }
+    tx.update(orderRef, {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'customer',
+      cancelReason: reason,
+      pointsReversed: (Number(o.pointsReversed) || 0) + removed
+    });
+    return { ok: true, pointsRemoved: removed };
   });
 }
 
@@ -337,16 +375,52 @@ function openReturnModal(id, o, idx, customer, onDone) {
     // Open WhatsApp first, while this still counts as the shopper's tap
     // (browsers block pop-ups opened after waiting on the network).
     window.open(waLink(msg), '_blank', 'noopener');
+    let removed = 0;
     try {
-      await updateDoc(doc(db, 'orders', id), {
-        returns: { ...(o.returns || {}), [idx]: { reason, note, productId: item.productId || '', name: item.name, qty: item.qty, requestedAt: serverTimestamp() } }
-      });
+      removed = await requestReturnWithPoints(id, idx, { reason, note, productId: item.productId || '', name: item.name, qty: item.qty });
     } catch (err) {
       console.warn('Return request saved to WhatsApp only', err);
     }
     overlay.classList.remove('open');
-    toast('Return request sent. We will reply on WhatsApp.', 'success');
+    toast(`Return request sent. We will reply on WhatsApp.${removed ? ` ${removed} points earned on this item were removed.` : ''}`, 'success', 5000);
     onDone();
+  });
+}
+
+// The points an item earned: its share of the order's earned points.
+function itemEarnedShare(o, item) {
+  const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+  const subtotal = Number(o.subtotal) || (o.items || []).reduce((s, i) => s + i.price * i.qty, 0);
+  if (!earned || !subtotal) return 0;
+  return Math.floor(earned * (item.price * item.qty) / subtotal);
+}
+
+// Saves the return request and takes back the points that item earned,
+// together. Never removes more than the order earned in total.
+async function requestReturnWithPoints(id, idx, request) {
+  const orderRef = doc(db, 'orders', id);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(orderRef);
+    if (!snap.exists()) return 0;
+    const o = snap.data();
+    if (o.returns?.[idx]) return 0; // already requested
+    const item = o.items[idx];
+    const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+    const alreadyRemoved = Object.values(o.returns || {}).reduce((s, r) => s + (Number(r.pointsRemoved) || 0), 0) + (Number(o.pointsReversed) || 0);
+    let remove = Math.min(itemEarnedShare(o, item), Math.max(0, earned - alreadyRemoved));
+    if (remove > 0 && o.customer?.phone) {
+      const custRef = doc(db, 'customers', o.customer.phone);
+      const cust = await tx.get(custRef);
+      const bal = cust.exists() ? Number(cust.data().pointsBalance) || 0 : 0;
+      remove = Math.min(bal, remove);
+      if (remove > 0) tx.update(custRef, { pointsBalance: bal - remove });
+    } else {
+      remove = 0;
+    }
+    tx.update(orderRef, {
+      returns: { ...(o.returns || {}), [idx]: { ...request, status: 'requested', pointsRemoved: remove, requestedAt: serverTimestamp() } }
+    });
+    return remove;
   });
 }
 

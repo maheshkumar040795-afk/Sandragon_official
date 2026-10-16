@@ -1315,3 +1315,7 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 .return-note.no{color:#b3392e}
 .no-return-tag{font-size:.72rem;color:#b3392e;font-weight:600;white-space:nowrap}
 .modal-overlay .modal .order-item-line{margin-bottom:6px}
+.return-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.return-actions{display:flex;gap:6px;flex-shrink:0}
+.return-status.accepted{color:#17803d}
+.return-status.rejected{color:#b3392e}

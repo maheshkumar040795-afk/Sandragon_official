@@ -92,6 +92,7 @@ async function loadOrders() {
   // Forget selections for orders that no longer exist.
   [...selected].forEach(id => { if (!ordersCache.some(o => o.id === id)) selected.delete(id); });
   renderOrders();
+  autoSettleCancellations();
 }
 
 function renderOrders() {
@@ -308,16 +309,26 @@ function pointsStatusHtml(o) {
 function returnsPanelHtml(o) {
   const list = o.returns ? Object.entries(o.returns) : [];
   if (!list.length) return '';
+  const statusText = { accepted: 'Accepted', rejected: 'Rejected' };
   return `<div class="settings-preview mt-10"><strong><i class="fas fa-rotate-left gold"></i> Return requests</strong>
-    ${list.map(([, r]) => `<div class="mt-10">• <strong>${r.name}</strong> x${r.qty}: ${r.reason}${r.note ? ` (${r.note})` : ''}${r.requestedAt?.toDate ? ` <span class="stock-note">· ${r.requestedAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : ''}</div>`).join('')}
-    <div class="stock-note mt-10">The customer was sent to WhatsApp with these details. Reply there to arrange pickup.</div></div>`;
+    ${list.map(([idx, r]) => `<div class="return-row">
+      <div>• <strong>${r.name}</strong> x${r.qty}: ${r.reason}${r.note ? ` (${r.note})` : ''}${r.requestedAt?.toDate ? ` <span class="stock-note">· ${r.requestedAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+        ${Number(r.pointsRemoved) ? `<div class="stock-note">${r.status === 'rejected' ? `${r.pointsRemoved} points given back` : `${r.pointsRemoved} earned points taken back from the customer`}</div>` : ''}</div>
+      ${r.status && r.status !== 'requested'
+        ? `<span class="badge ${r.status === 'accepted' ? 'confirmed' : 'cancelled'}">${statusText[r.status]}</span>`
+        : `<div class="return-actions">
+            <button type="button" class="btn small" data-return-accept="${idx}">Accept</button>
+            <button type="button" class="btn small outline" data-return-reject="${idx}">Reject</button>
+          </div>`}
+    </div>`).join('')}
+    <div class="stock-note mt-10">The customer was sent to WhatsApp with these details. Reply there to arrange pickup. Rejecting a return gives back the points that were taken.</div></div>`;
 }
 
 function cancelPanelHtml(o) {
   const by = o.cancelledBy === 'customer' ? 'the customer' : 'admin';
   const when = o.cancelledAt?.toDate ? o.cancelledAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
   const redeemed = Number(o.points?.redeemed) || 0;
-  const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+  const earned = o.points?.credited ? Math.max(0, (Number(o.points.earned) || 0) - (Number(o.pointsReversed) || 0)) : 0;
   const todo = [
     'put the items back in stock',
     redeemed ? `return ${redeemed} redeemed points to the customer` : '',
@@ -325,7 +336,7 @@ function cancelPanelHtml(o) {
   ].filter(Boolean).join(', ');
   return `<div class="coupon-msg err mt-10" style="display:block"><i class="fas fa-circle-xmark"></i> Cancelled by ${by}${when ? ' on ' + when : ''}${o.cancelReason ? `. Reason: ${o.cancelReason}` : ''}.</div>
     ${o.cancelSettled
-      ? `<div class="settings-preview mt-10"><i class="fas fa-circle-check gold"></i> Settled: stock restored${redeemed ? `, ${redeemed} points returned` : ''}${earned ? `, ${earned} earned points removed` : ''}.</div>`
+      ? `<div class="settings-preview mt-10"><i class="fas fa-circle-check gold"></i> Settled: stock restored${redeemed ? `, ${redeemed} redeemed points returned to the customer` : ''}${Number(o.pointsReversed) ? `, ${o.pointsReversed} earned points taken back` : ''}.</div>`
       : `<div class="settings-preview mt-10">Settle this cancellation to ${todo}.
           <div class="mt-10"><button type="button" class="btn small" id="settleCancelBtn"><i class="fas fa-rotate"></i> Settle Cancellation</button></div></div>`}`;
 }
@@ -356,12 +367,64 @@ async function settleCancellation(orderId) {
     }
     const redeemed = Number(current.points?.redeemed) || 0;
     const earned = current.points?.credited ? Number(current.points.earned) || 0 : 0;
-    if (custSnap?.exists() && (redeemed || earned)) {
+    // Earned points already taken back when the customer cancelled / requested returns.
+    const alreadyBack = (Number(current.pointsReversed) || 0) +
+      Object.values(current.returns || {}).reduce((s, r) => s + (r.status === 'rejected' ? 0 : Number(r.pointsRemoved) || 0), 0);
+    const takeBack = Math.max(0, earned - alreadyBack);
+    if (custSnap?.exists() && (redeemed || takeBack)) {
       const bal = Number(custSnap.data().pointsBalance) || 0;
-      tx.update(custRef, { pointsBalance: Math.max(0, bal + redeemed - earned) });
+      tx.update(custRef, { pointsBalance: Math.max(0, bal + redeemed - takeBack) });
     }
-    tx.update(orderRef, { cancelSettled: true, cancelSettledAt: serverTimestamp() });
+    tx.update(orderRef, {
+      cancelSettled: true,
+      cancelSettledAt: serverTimestamp(),
+      pointsReversed: alreadyBack + takeBack,
+      pointsRefunded: redeemed
+    });
   });
+}
+
+// Accept / reject a return request. Points for the item were already taken
+// back when the customer asked; rejecting gives them back (once).
+async function decideReturn(orderId, idx, decision) {
+  const o = ordersCache.find(x => x.id === orderId);
+  if (!o) return;
+  const orderRef = doc(db, 'orders', orderId);
+  const custRef = o.customer?.phone ? doc(db, 'customers', o.customer.phone) : null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(orderRef);
+    const current = snap.data() || {};
+    const r = current.returns?.[idx];
+    if (!r || (r.status && r.status !== 'requested')) return;
+    const giveBack = decision === 'rejected' ? Number(r.pointsRemoved) || 0 : 0;
+    const cust = giveBack && custRef ? await tx.get(custRef) : null;
+    if (cust?.exists()) {
+      tx.update(custRef, { pointsBalance: (Number(cust.data().pointsBalance) || 0) + giveBack });
+    }
+    tx.update(orderRef, {
+      returns: { ...current.returns, [idx]: { ...r, status: decision, decidedAt: serverTimestamp() } }
+    });
+  });
+}
+
+// Customer-cancelled orders are settled automatically as soon as the admin
+// opens Orders: stock goes back and points are put right without a click.
+let autoSettling = false;
+const settleAttempted = new Set(); // try each order once per visit, never loop
+async function autoSettleCancellations() {
+  if (autoSettling) return;
+  const pending = ordersCache.filter(o => o.status === 'cancelled' && !o.cancelSettled && !settleAttempted.has(o.id));
+  pending.forEach(o => settleAttempted.add(o.id));
+  if (!pending.length) return;
+  autoSettling = true;
+  try {
+    for (const o of pending) {
+      try { await settleCancellation(o.id); } catch (err) { console.error('Auto-settle failed for', o.id, err); }
+    }
+  } finally {
+    autoSettling = false;
+  }
+  await loadOrders();
 }
 
 // Adds the earned points to the customer's balance. Safe to click more than
@@ -500,6 +563,18 @@ document.getElementById('markConfirmedBtn').addEventListener('click', (e) => run
 document.getElementById('modalOrderBody').addEventListener('click', async (e) => {
   const btn = e.target.closest('#addMissingPointsBtn');
   if (btn) { runCredit(btn); return; }
+  const decide = e.target.closest('[data-return-accept], [data-return-reject]');
+  if (decide) {
+    const accept = decide.hasAttribute('data-return-accept');
+    const idx = accept ? decide.dataset.returnAccept : decide.dataset.returnReject;
+    if (!accept && !confirm('Reject this return? Any points taken back for this item will be given back to the customer.')) return;
+    decide.disabled = true;
+    try { await decideReturn(currentOrderId, idx, accept ? 'accepted' : 'rejected'); }
+    catch (err) { console.error(err); alert('Could not update the return. Check the console for details.'); }
+    await loadOrders();
+    openOrder(currentOrderId);
+    return;
+  }
   const settle = e.target.closest('#settleCancelBtn');
   if (settle) {
     settle.disabled = true;
@@ -535,6 +610,32 @@ document.getElementById('sendDispatchWhatsAppBtn').addEventListener('click', () 
   const o = ordersCache.find(x => x.id === currentOrderId);
   const text = encodeURIComponent(buildDispatchMessage(o));
   window.open(`https://wa.me/91${o.customer.phone}?text=${text}`, '_blank');
+});
+
+// Admin cancels on the customer's behalf (e.g. after a WhatsApp request),
+// then the cancellation is settled straight away: stock and points put right.
+document.getElementById('adminCancelBtn').addEventListener('click', async () => {
+  const o = ordersCache.find(x => x.id === currentOrderId);
+  if (!o) return;
+  if (o.status === 'delivered') { alert('This order is already delivered. Use a return instead.'); return; }
+  const reason = prompt(`Cancel order #${o.id.slice(-8).toUpperCase()}?\n\nOptional reason (e.g. "Customer asked on WhatsApp"):`, '');
+  if (reason === null) return;
+  const btn = document.getElementById('adminCancelBtn');
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, 'orders', currentOrderId), {
+      status: 'cancelled', cancelledAt: serverTimestamp(), cancelledBy: 'admin', cancelReason: reason.trim()
+    });
+    o.status = 'cancelled';
+    await settleCancellation(currentOrderId);
+  } catch (err) {
+    console.error(err);
+    alert('Could not cancel this order. Check the console for details.');
+  } finally {
+    btn.disabled = false;
+  }
+  await loadOrders();
+  openOrder(currentOrderId);
 });
 
 document.getElementById('markDeliveredBtn').addEventListener('click', async () => {

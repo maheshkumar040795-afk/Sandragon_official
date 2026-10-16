@@ -67,7 +67,7 @@ service cloud.firestore {
         resource.data.status in ['placed', 'confirmed', 'packed'] &&
         request.resource.data.status == 'cancelled' &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'cancelledAt', 'cancelledBy', 'cancelReason']);
+          .hasOnly(['status', 'cancelledAt', 'cancelledBy', 'cancelReason', 'pointsReversed']);
 
       // Customer return request: only on a delivered order, within 3 days
       // of delivery, and only the `returns` field may change.
