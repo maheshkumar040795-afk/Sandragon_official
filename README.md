@@ -1,5 +1,11 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## Cancel via WhatsApp & points on cancel/return (Oct 16, 2026)
+
+- **Cancel** now always opens WhatsApp with a drafted cancellation message (order, items, total, reason, name, phone). If the online cancel can't be saved (e.g. rules not yet published), the customer is told the request was sent and the store cancels it from Admin → Orders → **Cancel Order**.
+- **Points on cancel:** points earned by the order are removed from the customer's balance immediately when they cancel. When the admin opens Orders, cancelled orders are **settled automatically** (stock restored, redeemed points returned, any remaining earned points removed, once only).
+- **Points on return:** requesting a return removes that item's share of the order's earned points. Admin can **Accept** or **Reject** each return; rejecting gives the points back.
+
 ## Cancel, return & "Return not applicable" (Oct 16, 2026)
 
 - **Cancel order** (Order History): available while the order is Placed, Confirmed or Packed; disappears once Shipped. Optional reason; customer can then message the store on WhatsApp. Admin → Orders has a **Cancelled** tab; **Settle Cancellation** puts the items back in stock, returns redeemed points and takes back points earned (once only).

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Orders | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261016">
+<link rel="stylesheet" href="../css/style.css?v=20261016b">
 </head>
 <body>
 
@@ -89,7 +89,10 @@
 
     <div class="mt-20">
       <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 4 · Final status</label>
-      <button class="btn small outline" id="markDeliveredBtn">Mark as Delivered</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn small outline" id="markDeliveredBtn">Mark as Delivered</button>
+        <button class="btn small danger" id="adminCancelBtn"><i class="fas fa-xmark"></i> Cancel Order</button>
+      </div>
     </div>
     </div><!-- /#orderSteps -->
 
