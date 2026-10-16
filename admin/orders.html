@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Orders | SANDRAGON Admin</title>
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261015d">
+<link rel="stylesheet" href="../css/style.css?v=20261016">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
       <button type="button" role="tab" class="admin-tab active" data-tab="new">New <span class="tab-count" id="countNew">0</span></button>
       <button type="button" role="tab" class="admin-tab" data-tab="confirmed">Confirmed <span class="tab-count" id="countConfirmed">0</span></button>
       <button type="button" role="tab" class="admin-tab" data-tab="delivered">Delivered <span class="tab-count" id="countDelivered">0</span></button>
+      <button type="button" role="tab" class="admin-tab" data-tab="cancelled">Cancelled <span class="tab-count" id="countCancelled">0</span></button>
     </div>
     <table>
       <thead>
@@ -56,6 +57,7 @@
     <h3>Order <span id="modalOrderId"></span></h3>
     <div id="modalOrderBody"></div>
 
+    <div id="orderSteps">
     <div class="mt-20">
       <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 1 · Confirm order with customer</label>
       <div class="whatsapp-preview" id="confirmPreview"></div>
@@ -89,6 +91,7 @@
       <label class="mb-10" style="display:block;font-size:.85rem;color:var(--muted)">Step 4 · Final status</label>
       <button class="btn small outline" id="markDeliveredBtn">Mark as Delivered</button>
     </div>
+    </div><!-- /#orderSteps -->
 
     <button class="btn outline mt-20" id="closeModalBtn" style="width:100%">Close</button>
   </div>

@@ -49,7 +49,7 @@ let currentOrderId = null;
 
 const statusLabels = {
   placed: 'Placed', confirmed: 'Confirmed', packed: 'Packed',
-  shipped: 'Shipped', delivered: 'Delivered'
+  shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled'
 };
 
 // Shows every selected option (Color, Size, Flavour, Contains, or any
@@ -69,7 +69,8 @@ function itemVariantLabel(i) {
 const TAB_STATUSES = {
   new: ['placed'],
   confirmed: ['confirmed', 'packed', 'shipped'],
-  delivered: ['delivered']
+  delivered: ['delivered'],
+  cancelled: ['cancelled']
 };
 let activeTab = 'new';
 const selected = new Set();
@@ -97,6 +98,7 @@ function renderOrders() {
   document.getElementById('countNew').textContent = ordersInTab('new').length;
   document.getElementById('countConfirmed').textContent = ordersInTab('confirmed').length;
   document.getElementById('countDelivered').textContent = ordersInTab('delivered').length;
+  document.getElementById('countCancelled').textContent = ordersInTab('cancelled').length;
   document.querySelectorAll('#orderTabs .admin-tab').forEach(t => {
     const on = t.dataset.tab === activeTab;
     t.classList.toggle('active', on);
@@ -105,7 +107,7 @@ function renderOrders() {
 
   const rows = ordersInTab();
   if (!rows.length) {
-    const label = { new: 'new', confirmed: 'confirmed', delivered: 'delivered' }[activeTab];
+    const label = { new: 'new', confirmed: 'confirmed', delivered: 'delivered', cancelled: 'cancelled' }[activeTab];
     tbody.innerHTML = `<tr><td colspan="7" class="text-center">No ${label} orders.</td></tr>`;
     updateSelectionUi();
     return;
@@ -117,7 +119,7 @@ function renderOrders() {
       <td>#${o.id.slice(-8).toUpperCase()}</td>
       <td>${o.customer?.name || ''}<br><span class="stock-note">${o.customer?.phone || ''}</span></td>
       <td>₹${Number(o.totalAmount).toLocaleString('en-IN')}</td>
-      <td><span class="badge ${o.status}">${statusLabels[o.status] || o.status}</span></td>
+      <td><span class="badge ${o.status}">${statusLabels[o.status] || o.status}</span>${o.returns && Object.keys(o.returns).length ? `<br><span class="badge returned"><i class="fas fa-rotate-left"></i> Return requested (${Object.keys(o.returns).length})</span>` : ''}${o.status === 'cancelled' && !o.cancelSettled ? '<br><span class="stock-note" style="color:var(--danger)">Needs settling</span>' : ''}</td>
       <td>${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-IN') : '—'}</td>
       <td><button class="btn small outline" data-view="${o.id}">View</button></td>
     </tr>
@@ -206,6 +208,9 @@ function orderRow(o) {
     'Points Earned': o.points?.credited ? Number(o.points.earned) || 0 : 0,
     'Payment Mode': o.paymentMode || '',
     'Payment ID': o.paymentId || '',
+    'Cancelled By': o.cancelledBy || '',
+    'Cancel Reason': o.cancelReason || '',
+    'Return Requests': o.returns ? Object.values(o.returns).map(r => `${r.name}: ${r.reason}${r.note ? ' - ' + r.note : ''}`).join('; ') : '',
     'Courier': o.courierName || '',
     'AWB / Tracking': o.awbNumber || ''
   };
@@ -231,7 +236,7 @@ document.getElementById('exportOrdersBtn').addEventListener('click', () => {
   const inTab = ordersInTab();
   const chosen = inTab.filter(o => selected.has(o.id));
   const list = chosen.length ? chosen : inTab;
-  const tabName = { new: 'New', confirmed: 'Confirmed', delivered: 'Delivered' }[activeTab];
+  const tabName = { new: 'New', confirmed: 'Confirmed', delivered: 'Delivered', cancelled: 'Cancelled' }[activeTab];
   exportToExcel(`sandragon-orders-${activeTab}`, [
     { name: `${tabName} Orders`, rows: list.map(orderRow) },
     { name: 'Order Items', rows: itemRows(list) }
@@ -298,6 +303,65 @@ function pointsStatusHtml(o) {
       <button type="button" class="btn small" id="addMissingPointsBtn" style="margin-left:8px"><i class="fas fa-plus"></i> Add Points</button></div>`;
   }
   return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> <strong>${due} points</strong> will be added to the customer's balance when you click <strong>Mark as Confirmed</strong>.</div>`;
+}
+
+function returnsPanelHtml(o) {
+  const list = o.returns ? Object.entries(o.returns) : [];
+  if (!list.length) return '';
+  return `<div class="settings-preview mt-10"><strong><i class="fas fa-rotate-left gold"></i> Return requests</strong>
+    ${list.map(([, r]) => `<div class="mt-10">• <strong>${r.name}</strong> x${r.qty}: ${r.reason}${r.note ? ` (${r.note})` : ''}${r.requestedAt?.toDate ? ` <span class="stock-note">· ${r.requestedAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : ''}</div>`).join('')}
+    <div class="stock-note mt-10">The customer was sent to WhatsApp with these details. Reply there to arrange pickup.</div></div>`;
+}
+
+function cancelPanelHtml(o) {
+  const by = o.cancelledBy === 'customer' ? 'the customer' : 'admin';
+  const when = o.cancelledAt?.toDate ? o.cancelledAt.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const redeemed = Number(o.points?.redeemed) || 0;
+  const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+  const todo = [
+    'put the items back in stock',
+    redeemed ? `return ${redeemed} redeemed points to the customer` : '',
+    earned ? `take back the ${earned} points earned on this order` : ''
+  ].filter(Boolean).join(', ');
+  return `<div class="coupon-msg err mt-10" style="display:block"><i class="fas fa-circle-xmark"></i> Cancelled by ${by}${when ? ' on ' + when : ''}${o.cancelReason ? `. Reason: ${o.cancelReason}` : ''}.</div>
+    ${o.cancelSettled
+      ? `<div class="settings-preview mt-10"><i class="fas fa-circle-check gold"></i> Settled: stock restored${redeemed ? `, ${redeemed} points returned` : ''}${earned ? `, ${earned} earned points removed` : ''}.</div>`
+      : `<div class="settings-preview mt-10">Settle this cancellation to ${todo}.
+          <div class="mt-10"><button type="button" class="btn small" id="settleCancelBtn"><i class="fas fa-rotate"></i> Settle Cancellation</button></div></div>`}`;
+}
+
+// Undo a cancelled order's effects exactly once: restock its items, give back
+// redeemed points and take back points it earned (never below zero).
+async function settleCancellation(orderId) {
+  const o = ordersCache.find(x => x.id === orderId);
+  if (!o) return;
+  const orderRef = doc(db, 'orders', orderId);
+  const qtyByProduct = {};
+  (o.items || []).forEach(i => { if (i.productId) qtyByProduct[i.productId] = (qtyByProduct[i.productId] || 0) + (Number(i.qty) || 0); });
+  const productRefs = Object.keys(qtyByProduct).map(id => [id, doc(db, 'products', id)]);
+  const custRef = o.customer?.phone ? doc(db, 'customers', o.customer.phone) : null;
+  await runTransaction(db, async (tx) => {
+    const orderSnap = await tx.get(orderRef);
+    const current = orderSnap.data() || {};
+    if (current.cancelSettled || current.status !== 'cancelled') return;
+    const productSnaps = [];
+    for (const [id, ref] of productRefs) productSnaps.push([id, ref, await tx.get(ref)]);
+    const custSnap = custRef ? await tx.get(custRef) : null;
+
+    for (const [id, ref, snap] of productSnaps) {
+      if (!snap.exists()) continue;
+      const stock = snap.data().stock;
+      if (stock === undefined || stock === null) continue; // unlimited stock
+      tx.update(ref, { stock: Number(stock) + qtyByProduct[id] });
+    }
+    const redeemed = Number(current.points?.redeemed) || 0;
+    const earned = current.points?.credited ? Number(current.points.earned) || 0 : 0;
+    if (custSnap?.exists() && (redeemed || earned)) {
+      const bal = Number(custSnap.data().pointsBalance) || 0;
+      tx.update(custRef, { pointsBalance: Math.max(0, bal + redeemed - earned) });
+    }
+    tx.update(orderRef, { cancelSettled: true, cancelSettledAt: serverTimestamp() });
+  });
 }
 
 // Adds the earned points to the customer's balance. Safe to click more than
@@ -384,8 +448,11 @@ function openOrder(id) {
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
     <div class="stock-note">Payment ID: ${o.paymentId}</div>
-    ${pointsStatusHtml(o)}
+    ${o.status === 'cancelled' ? cancelPanelHtml(o) : pointsStatusHtml(o)}
+    ${returnsPanelHtml(o)}
   `;
+  // A cancelled order has nothing left to confirm, pack or ship.
+  document.getElementById('orderSteps').hidden = o.status === 'cancelled';
 
   document.getElementById('confirmPreview').textContent = buildConfirmMessage(o);
 
@@ -429,10 +496,22 @@ document.getElementById('closeModalBtn').addEventListener('click', () => modal.c
 
 document.getElementById('markConfirmedBtn').addEventListener('click', (e) => runCredit(e.currentTarget));
 
-// "Add Points" lives inside the order body, which is re-rendered each time.
-document.getElementById('modalOrderBody').addEventListener('click', (e) => {
+// "Add Points" / "Settle Cancellation" live inside the order body, which is re-rendered each time.
+document.getElementById('modalOrderBody').addEventListener('click', async (e) => {
   const btn = e.target.closest('#addMissingPointsBtn');
-  if (btn) runCredit(btn);
+  if (btn) { runCredit(btn); return; }
+  const settle = e.target.closest('#settleCancelBtn');
+  if (settle) {
+    settle.disabled = true;
+    try {
+      await settleCancellation(currentOrderId);
+    } catch (err) {
+      console.error(err);
+      alert('Could not settle this cancellation. Check the console for details.');
+    }
+    await loadOrders();
+    openOrder(currentOrderId);
+  }
 });
 
 document.getElementById('sendConfirmWhatsAppBtn').addEventListener('click', () => {

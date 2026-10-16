@@ -75,6 +75,7 @@ function renderCart() {
         <div class="gold" style="font-weight:700">₹${(item.price * item.qty).toLocaleString('en-IN')}</div>
         ${mrpOf(item) ? `<s class="mrp">₹${(mrpOf(item) * item.qty).toLocaleString('en-IN')}</s>` : ''}
         ${item.pointsRedeemable && pointsConfig.enabled ? '<div class="points-tag"><i class="fas fa-coins"></i> Points OK</div>' : ''}
+        ${item.returnNotApplicable ? '<div class="no-return-tag"><i class="fas fa-ban"></i> Return not applicable for this product</div>' : ''}
       </div>
     </div>
   `).join('');
@@ -532,7 +533,8 @@ async function refreshCartFromStore() {
       price: price || item.price,
       mrp: mrpOf(p),
       pointsRedeemable: !!p.pointsRedeemable,
-      couponExcluded: !!p.couponExcluded
+      couponExcluded: !!p.couponExcluded,
+      returnNotApplicable: !!p.returnNotApplicable
     });
   }
   const before = JSON.stringify(cart);

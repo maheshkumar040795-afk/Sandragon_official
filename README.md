@@ -1,5 +1,12 @@
 # SANDRAGON — E-Commerce Website (Customer + Admin Portal)
 
+## Cancel, return & "Return not applicable" (Oct 16, 2026)
+
+- **Cancel order** (Order History): available while the order is Placed, Confirmed or Packed; disappears once Shipped. Optional reason; customer can then message the store on WhatsApp. Admin → Orders has a **Cancelled** tab; **Settle Cancellation** puts the items back in stock, returns redeemed points and takes back points earned (once only).
+- **Return** (Order History): a Return button per product after the order is Delivered, for **3 days** from the delivered date, then it disappears. Reason dropdown (Damaged product / Incorrect colour / Incorrect size / Other + description). **Send** opens WhatsApp with the request drafted to the store number, and the request is saved on the order (shown in Admin → Orders and the Excel export).
+- **Return not applicable** (Admin → Products): products with this ticked never show a Return button, and the product page and cart say "Return not applicable for this product".
+- **Re-deploy `firestore.rules`**: it adds the two narrow customer permissions (cancel before shipping, return within 3 days).
+
 ## Points redeem limit, order tabs & Excel export (Oct 15, 2026)
 
 - **Redeem limit:** points can pay for at most *Max redeem %* (Admin → Points, default **5%**) of the eligible products' value, rounded off. Example: 550 points, ₹449 product → redeem 22 points, pay ₹427. **An order that uses points or a coupon earns no new points, and points can't be combined with a coupon** (applying a coupon removes redeemed points; the cart has a *Remove coupon* link).
