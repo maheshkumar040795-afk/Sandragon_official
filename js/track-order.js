@@ -5,7 +5,8 @@ const statusLabels = {
   confirmed: 'Confirmed — Preparing',
   packed: 'Packed',
   shipped: 'Shipped',
-  delivered: 'Delivered'
+  delivered: 'Delivered',
+  cancelled: 'Cancelled'
 };
 
 async function search(phone) {

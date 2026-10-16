@@ -39,7 +39,7 @@ async function loadProducts() {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td><img src="${img}" style="width:44px;height:44px;object-fit:cover;border-radius:6px"></td>
-      <td>${p.name}</td>
+      <td>${p.name}${p.returnNotApplicable ? '<br><span class="stock-note">No returns</span>' : ''}</td>
       <td>${p.category ? categoryName(p.category) || p.category : '—'}</td>
       <td>₹${Number(p.price).toLocaleString('en-IN')}${Number(p.mrp) > Number(p.price) ? `<br><s class="stock-note">₹${Number(p.mrp).toLocaleString('en-IN')}</s> <span class="gold">${Math.round((p.mrp - p.price) / p.mrp * 100)}% off</span>` : ''}</td>
       <td>${p.pointsRedeemable ? '<span class="badge confirmed">Redeem</span>' : '—'}</td>
@@ -108,6 +108,7 @@ function resetModal() {
   document.getElementById('fPrice').value = '';
   document.getElementById('fMrp').value = '';
   document.getElementById('fPointsRedeemable').checked = false;
+  document.getElementById('fReturnNA').checked = false;
   document.getElementById('fStock').value = '';
   document.getElementById('fVendorName').value = '';
   document.getElementById('fVendorPhone').value = '';
@@ -148,6 +149,7 @@ async function openModal(id) {
       document.getElementById('fMrp').value = hasDiscount ? p.mrp : (p.price || '');
       document.getElementById('fPrice').value = hasDiscount ? p.price : '';
       document.getElementById('fPointsRedeemable').checked = !!p.pointsRedeemable;
+      document.getElementById('fReturnNA').checked = !!p.returnNotApplicable;
       document.getElementById('fStock').value = p.stock ?? '';
       document.getElementById('fVendorName').value = p.vendorName || '';
       document.getElementById('fVendorPhone').value = p.vendorPhone || '';
@@ -308,7 +310,8 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     options: options.filter(o => o.values.length > 0),
     active: document.getElementById('fActive').checked,
     couponExcluded: document.getElementById('fCouponExcluded').checked,
-    pointsRedeemable: document.getElementById('fPointsRedeemable').checked
+    pointsRedeemable: document.getElementById('fPointsRedeemable').checked,
+    returnNotApplicable: document.getElementById('fReturnNA').checked
   };
 
   try {
@@ -343,6 +346,7 @@ document.getElementById('exportProductsBtn')?.addEventListener('click', async ()
       'Visible in Store': p.active ? 'Yes' : 'No',
       'Points Redeem Applicable': p.pointsRedeemable ? 'Yes' : 'No',
       'Coupon Not Applicable': p.couponExcluded ? 'Yes' : 'No',
+      'Return Not Applicable': p.returnNotApplicable ? 'Yes' : 'No',
       'Options': opts,
       'Rating': Number(p.ratingCount) ? (Number(p.ratingSum) / Number(p.ratingCount)).toFixed(1) : '',
       'Reviews': Number(p.ratingCount) || 0,

@@ -40,7 +40,7 @@ function normalizeOptions(p) {
 // Fields that change what the page shows. If a fresh Firestore read differs
 // from the cached copy on any of these, the page re-renders with fresh data.
 function visibleSignature(p) {
-  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active, p.mrp, p.pointsRedeemable]);
+  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active, p.mrp, p.pointsRedeemable, p.returnNotApplicable]);
 }
 
 async function loadProduct() {
@@ -109,6 +109,9 @@ function render() {
         <div class="pd-price">${priceHtml(p, 'lg')}</div>
         ${mrpOf(p) ? `<div class="pd-save">You save ${inr(mrpOf(p) - Number(p.price))}</div>` : ''}
         <div class="pd-points" id="pdPoints"></div>
+        ${p.returnNotApplicable
+          ? `<div class="return-note no"><i class="fas fa-ban"></i> Return not applicable for this product</div>`
+          : `<div class="return-note"><i class="fas fa-rotate-left"></i> Easy return within 3 days of delivery</div>`}
         <p class="pd-desc">${escapeHtml(p.description || '')}</p>
 
         ${options.map((opt, gi) => `
@@ -213,6 +216,7 @@ function render() {
       price: Number(p.price),
       mrp: mrpOf(p),
       pointsRedeemable: !!p.pointsRedeemable,
+      returnNotApplicable: !!p.returnNotApplicable,
       // Kept for backward compatibility with older cart/order display code
       // that reads these two fields directly; `options` carries everything.
       color: selectedOptions['Color'] || null,

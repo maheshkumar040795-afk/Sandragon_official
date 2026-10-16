@@ -60,6 +60,22 @@ service cloud.firestore {
       allow create: if true;
       allow read: if true;
       allow update, delete: if isAdmin();
+
+      // Customer cancels from Order History: only before the order is
+      // shipped, only to "cancelled", and only these fields may change.
+      allow update: if !isAdmin() &&
+        resource.data.status in ['placed', 'confirmed', 'packed'] &&
+        request.resource.data.status == 'cancelled' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'cancelledAt', 'cancelledBy', 'cancelReason']);
+
+      // Customer return request: only on a delivered order, within 3 days
+      // of delivery, and only the `returns` field may change.
+      allow update: if !isAdmin() &&
+        resource.data.status == 'delivered' &&
+        resource.data.deliveredAt is timestamp &&
+        request.time < resource.data.deliveredAt + duration.value(3, 'd') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['returns']);
     }
 
     // Customers: lightweight "account" keyed by phone number, same trust model as

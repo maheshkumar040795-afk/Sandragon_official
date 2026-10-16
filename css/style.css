@@ -1302,3 +1302,16 @@ body.light-theme footer{background:var(--bg)}
 .tab-count{font-family:var(--font-body);font-size:.72rem;font-weight:700;min-width:22px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--white);text-align:center}
 .admin-tab.active .tab-count{background:var(--gold);color:#111}
 tbody tr.row-selected{background:rgba(224,86,74,.08)}
+
+/* Order history: cancel + return */
+.item-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:8px}
+.return-until{font-size:.76rem;color:var(--muted)}
+.return-status{font-size:.8rem;font-weight:600;color:#8a6d12}
+.return-status.muted{color:var(--muted);font-weight:500}
+.cancel-note{margin:10px 0 14px;padding:10px 12px;border-radius:10px;background:rgba(224,86,74,.08);color:#b3392e;font-size:.88rem}
+.badge.cancelled{background:rgba(224,86,74,.18);color:var(--danger)}
+.badge.returned{background:rgba(201,162,39,.18);color:#c9a227;margin-top:4px;display:inline-block}
+.return-note{display:flex;align-items:center;gap:8px;font-size:.88rem;color:#17803d;margin:0 0 18px}
+.return-note.no{color:#b3392e}
+.no-return-tag{font-size:.72rem;color:#b3392e;font-weight:600;white-space:nowrap}
+.modal-overlay .modal .order-item-line{margin-bottom:6px}

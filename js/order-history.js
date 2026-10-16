@@ -1,4 +1,5 @@
-import { db, collection, getDocs, query, where } from "./firebase-init.js";
+import { db, collection, getDocs, getDoc, doc, updateDoc, query, where, serverTimestamp } from "./firebase-init.js";
+import { business } from "./config.js";
 import { getCustomer } from "./customer-store.js";
 import { ensureCustomer } from "./account-gate.js";
 import { submitReview } from "./reviews.js";
@@ -11,8 +12,17 @@ const STEP_LABELS = {
   confirmed: 'Confirmed',
   packed: 'Packed',
   shipped: 'Shipped',
-  delivered: 'Delivered'
+  delivered: 'Delivered',
+  cancelled: 'Cancelled'
 };
+
+// Customers can cancel until the order is shipped.
+const CANCELLABLE = ['placed', 'confirmed', 'packed'];
+// Return requests are allowed for this many days after delivery.
+const RETURN_DAYS = 3;
+const RETURN_REASONS = ['Damaged product', 'Incorrect colour', 'Incorrect size', 'Other'];
+const CANCEL_REASONS = ['Ordered by mistake', 'Changed my mind', 'Delivery is taking too long', 'Want to change size / colour', 'Other'];
+
 const STEP_ICONS = {
   placed: 'fa-receipt',
   confirmed: 'fa-check',
@@ -65,14 +75,38 @@ function itemVariantLabel(i) {
   return [i.color, i.size].filter(Boolean).join(' / ');
 }
 
-function itemLineHtml(i) {
+// Delivered date + RETURN_DAYS, or null if this order can't be returned.
+function returnDeadline(o) {
+  if (o.status !== 'delivered' || !o.deliveredAt?.toMillis) return null;
+  return new Date(o.deliveredAt.toMillis() + RETURN_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function returnControlHtml(orderId, o, i, idx) {
+  const req = o.returns?.[idx];
+  if (req) {
+    return `<div class="return-status"><i class="fas fa-rotate-left"></i> Return requested: ${escapeHtml(req.reason)}${req.note ? ` (${escapeHtml(req.note)})` : ''}</div>`;
+  }
+  if (o.status !== 'delivered') return '';
+  if (i.returnNotApplicable) return `<div class="return-status muted"><i class="fas fa-ban"></i> Return not applicable for this product</div>`;
+  const deadline = returnDeadline(o);
+  if (!deadline || Date.now() > deadline.getTime()) return ''; // window closed: no option
+  const until = deadline.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return `<button type="button" class="btn small outline return-btn" data-order="${orderId}" data-idx="${idx}">
+      <i class="fas fa-rotate-left"></i> Return
+    </button>
+    <span class="return-until">Return available until ${until}</span>`;
+}
+
+function itemLineHtml(i, idx, orderId, o) {
   const variant = itemVariantLabel(i);
+  const controls = orderId ? returnControlHtml(orderId, o, i, idx) : '';
   return `
     <div class="order-item-line">
       <img src="${cld(i.image || 'assets/logo.jpeg', 120)}" data-orig="${i.image || 'assets/logo.jpeg'}" onerror="${IMG_FALLBACK}" alt="${escapeHtml(i.name)}" loading="lazy" decoding="async">
       <div class="order-item-line-info">
         <div>${escapeHtml(i.name)}</div>
         <div class="meta">${variant ? escapeHtml(variant) + ' &nbsp;·&nbsp; ' : ''}Qty: ${i.qty} &nbsp;·&nbsp; ₹${Number(i.price).toLocaleString('en-IN')}</div>
+        ${controls ? `<div class="item-actions">${controls}</div>` : ''}
       </div>
     </div>
   `;
@@ -92,13 +126,18 @@ function orderCardHtml(id, o) {
         <span>Total: <strong>₹${Number(o.totalAmount).toLocaleString('en-IN')}</strong></span>
       </div>
       <div class="order-items-list">
-        ${(o.items || []).map(itemLineHtml).join('')}
+        ${(o.items || []).map((i, idx) => itemLineHtml(i, idx, id, o)).join('')}
       </div>
       ${orderTotalsHtml(o)}
+      ${o.status === 'cancelled' ? `<div class="cancel-note"><i class="fas fa-circle-xmark"></i> Cancelled${o.cancelledAt?.toDate ? ' on ' + formatDate(o.cancelledAt) : ''}${o.cancelReason ? ': ' + escapeHtml(o.cancelReason) : ''}.${cancelRefundNote(o)}</div>` : ''}
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn small outline view-tracking-btn" data-id="${id}">
           <i class="fas fa-truck"></i> View Tracking Status
         </button>
+        ${CANCELLABLE.includes(o.status) ? `
+        <button class="btn small outline cancel-order-btn" data-id="${id}">
+          <i class="fas fa-xmark"></i> Cancel Order
+        </button>` : ''}
         ${o.status === 'delivered' ? `
         <button class="btn small write-review-btn" data-id="${id}">
           <i class="fas fa-star"></i> Write a Review
@@ -109,6 +148,7 @@ function orderCardHtml(id, o) {
 }
 
 function stepperHtml(status) {
+  if (status === 'cancelled') return '';
   const currentIndex = STEPS.indexOf(status);
   return `
     <div class="track-stepper">
@@ -134,8 +174,9 @@ function openTrackingModal(id, o) {
     <div class="modal">
       <h3>Order #${id.slice(-8).toUpperCase()}</h3>
       ${stepperHtml(o.status)}
+      ${o.status === 'cancelled' ? `<div class="cancel-note mt-20"><i class="fas fa-circle-xmark"></i> This order was cancelled.</div>` : ''}
       <div class="order-items-list mt-20">
-        ${(o.items || []).map(itemLineHtml).join('')}
+        ${(o.items || []).map(i => itemLineHtml(i)).join('')}
       </div>
       ${orderTotalsHtml(o)}
       ${o.awbNumber ? `<div class="stock-note mt-20">Courier: ${o.courierName || ''} &nbsp; AWB: <span class="gold">${o.awbNumber}</span></div>` : ''}
@@ -146,6 +187,167 @@ function openTrackingModal(id, o) {
   overlay.classList.add('open');
   document.getElementById('closeTrackingBtn').addEventListener('click', () => overlay.classList.remove('open'));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+}
+
+function cancelRefundNote(o) {
+  const parts = [];
+  const paidOnline = o.paymentMode && !/demo/i.test(o.paymentMode) && !/cash|cod/i.test(o.paymentMode);
+  if (paidOnline) parts.push(' Your refund will go back to your original payment method.');
+  if (Number(o.points?.redeemed) > 0) parts.push(` Your ${o.points.redeemed} points will be returned to your balance.`);
+  return parts.join('');
+}
+
+function ensureOverlay(id) {
+  let overlay = document.getElementById(id);
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = id;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+  return overlay;
+}
+
+function waLink(text) {
+  return `https://wa.me/${business.phonePrimary}?text=${encodeURIComponent(text)}`;
+}
+
+/* ---------------- Cancel (until shipped) ---------------- */
+
+function openCancelModal(id, o, customer, onDone) {
+  const overlay = ensureOverlay('cancelOverlay');
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Cancel order #${id.slice(-8).toUpperCase()}?</h3>
+      <p class="account-sub">You can cancel any time before your order is shipped.</p>
+      <div class="order-items-list">${(o.items || []).map(i => itemLineHtml(i)).join('')}</div>
+      <div class="form-group mt-10">
+        <label for="cancelReason">Reason (optional)</label>
+        <select id="cancelReason">
+          <option value="">Choose a reason</option>
+          ${CANCEL_REASONS.map(r => `<option>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="account-error" id="cancelError" style="display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn danger" id="confirmCancelBtn"><i class="fas fa-xmark"></i> Yes, cancel order</button>
+        <button class="btn outline" id="keepOrderBtn">Keep order</button>
+      </div>
+    </div>`;
+  overlay.classList.add('open');
+  document.getElementById('keepOrderBtn').addEventListener('click', () => overlay.classList.remove('open'));
+  document.getElementById('confirmCancelBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('confirmCancelBtn');
+    const errEl = document.getElementById('cancelError');
+    const reason = document.getElementById('cancelReason').value;
+    btn.disabled = true;
+    btn.textContent = 'Cancelling...';
+    try {
+      // Re-check the latest status: it may have shipped since the page loaded.
+      const fresh = await getDoc(doc(db, 'orders', id));
+      const status = fresh.exists() ? fresh.data().status : '';
+      if (!CANCELLABLE.includes(status)) {
+        errEl.textContent = status === 'shipped' || status === 'delivered'
+          ? 'This order has already been shipped, so it can no longer be cancelled. Please contact us on WhatsApp.'
+          : 'This order can no longer be cancelled.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-xmark"></i> Yes, cancel order';
+        return;
+      }
+      await updateDoc(doc(db, 'orders', id), {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelledBy: 'customer',
+        cancelReason: reason
+      });
+      const msg = `Hi SANDRAGON, I have cancelled my order #${id.slice(-8).toUpperCase()}.` +
+        (reason ? `\nReason: ${reason}` : '') +
+        `\nName: ${customer?.name || o.customer?.name || ''}\nPhone: ${o.customer?.phone || ''}`;
+      overlay.querySelector('.modal').innerHTML = `
+        <h3><i class="fas fa-circle-check" style="color:var(--success)"></i> Order cancelled</h3>
+        <p class="account-sub">Order #${id.slice(-8).toUpperCase()} has been cancelled.${cancelRefundNote(o)}</p>
+        <a class="btn" href="${waLink(msg)}" target="_blank" rel="noopener" style="width:100%"><i class="fab fa-whatsapp"></i> Inform SANDRAGON on WhatsApp</a>
+        <button class="btn outline mt-10" id="closeCancelBtn" style="width:100%">Close</button>`;
+      document.getElementById('closeCancelBtn').addEventListener('click', () => overlay.classList.remove('open'));
+      toast('Your order has been cancelled.', 'success');
+      onDone();
+    } catch (err) {
+      console.error(err);
+      errEl.textContent = "Couldn't cancel right now. Please try again or contact us on WhatsApp.";
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-xmark"></i> Yes, cancel order';
+    }
+  });
+}
+
+/* ---------------- Return request (within 3 days of delivery) ---------------- */
+
+function openReturnModal(id, o, idx, customer, onDone) {
+  const item = o.items[idx];
+  const overlay = ensureOverlay('returnOverlay');
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Return item</h3>
+      <p class="account-sub">Order #${id.slice(-8).toUpperCase()}. Tell us what's wrong and we'll arrange the return.</p>
+      <div class="order-items-list">${itemLineHtml(item)}</div>
+      <div class="form-group mt-10">
+        <label for="returnReason">Reason for return *</label>
+        <select id="returnReason">
+          <option value="">Select a reason</option>
+          ${RETURN_REASONS.map(r => `<option>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" id="returnNoteWrap" hidden>
+        <label for="returnNote">Please describe the problem *</label>
+        <textarea id="returnNote" rows="3" maxlength="300" placeholder="e.g. Bottle seal was broken"></textarea>
+      </div>
+      <p class="stock-note">Tapping Send opens WhatsApp with your request ready to send to SANDRAGON. You can attach photos there.</p>
+      <div class="account-error" id="returnError" style="display:none"></div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="sendReturnBtn"><i class="fab fa-whatsapp"></i> Send</button>
+        <button class="btn outline" id="cancelReturnBtn">Cancel</button>
+      </div>
+    </div>`;
+  overlay.classList.add('open');
+  const reasonSel = document.getElementById('returnReason');
+  const noteWrap = document.getElementById('returnNoteWrap');
+  reasonSel.addEventListener('change', () => {
+    noteWrap.hidden = reasonSel.value !== 'Other';
+    document.getElementById('returnError').style.display = 'none';
+  });
+  document.getElementById('cancelReturnBtn').addEventListener('click', () => overlay.classList.remove('open'));
+  document.getElementById('sendReturnBtn').addEventListener('click', async () => {
+    const reason = reasonSel.value;
+    const note = document.getElementById('returnNote').value.trim();
+    const errEl = document.getElementById('returnError');
+    if (!reason) { errEl.textContent = 'Please choose a reason.'; errEl.style.display = 'block'; return; }
+    if (reason === 'Other' && !note) { errEl.textContent = 'Please describe the problem.'; errEl.style.display = 'block'; return; }
+    const deadline = returnDeadline(o);
+    if (!deadline || Date.now() > deadline.getTime()) { errEl.textContent = 'The 3-day return window for this order has closed.'; errEl.style.display = 'block'; return; }
+    const variant = itemVariantLabel(item);
+    const msg = `Hi SANDRAGON, I'd like to return a product.\n\n` +
+      `Order: #${id.slice(-8).toUpperCase()}\n` +
+      `Product: ${item.name}${variant ? ' (' + variant + ')' : ''}\n` +
+      `Qty: ${item.qty}\n` +
+      `Reason: ${reason}${note ? ' - ' + note : ''}\n\n` +
+      `Name: ${customer?.name || o.customer?.name || ''}\nPhone: ${o.customer?.phone || ''}`;
+    // Open WhatsApp first, while this still counts as the shopper's tap
+    // (browsers block pop-ups opened after waiting on the network).
+    window.open(waLink(msg), '_blank', 'noopener');
+    try {
+      await updateDoc(doc(db, 'orders', id), {
+        returns: { ...(o.returns || {}), [idx]: { reason, note, productId: item.productId || '', name: item.name, qty: item.qty, requestedAt: serverTimestamp() } }
+      });
+    } catch (err) {
+      console.warn('Return request saved to WhatsApp only', err);
+    }
+    overlay.classList.remove('open');
+    toast('Return request sent. We will reply on WhatsApp.', 'success');
+    onDone();
+  });
 }
 
 /* ---------------- Post-delivery review flow ---------------- */
@@ -246,6 +448,8 @@ function openReviewModal(id, o, customerName) {
   });
 }
 
+let renderedOnce = false;
+
 async function loadOrders() {
   const customer = getCustomer();
   if (!customer) return;
@@ -263,10 +467,25 @@ async function loadOrders() {
       return tb - ta;
     });
     listEl.innerHTML = docs.map(d => orderCardHtml(d.id, d.data())).join('');
+    // After a cancel/return the list is redrawn: show it at once, no fade-in again.
+    if (renderedOnce) listEl.querySelectorAll('.order-card').forEach(c => c.classList.add('reveal', 'in-view'));
+    renderedOnce = true;
     listEl.querySelectorAll('.view-tracking-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const docSnap = docs.find(d => d.id === btn.dataset.id);
         openTrackingModal(btn.dataset.id, docSnap.data());
+      });
+    });
+    listEl.querySelectorAll('.cancel-order-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const docSnap = docs.find(d => d.id === btn.dataset.id);
+        openCancelModal(btn.dataset.id, docSnap.data(), customer, loadOrders);
+      });
+    });
+    listEl.querySelectorAll('.return-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const docSnap = docs.find(d => d.id === btn.dataset.order);
+        openReturnModal(btn.dataset.order, docSnap.data(), +btn.dataset.idx, customer, loadOrders);
       });
     });
     listEl.querySelectorAll('.write-review-btn').forEach(btn => {
