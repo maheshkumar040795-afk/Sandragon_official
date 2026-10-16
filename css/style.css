@@ -1324,3 +1324,11 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 .tab-alert[hidden]{display:none}
 .cancel-note.pending{background:rgba(240,119,79,.1);color:#b4532a}
 .cancel-request-box{background:rgba(240,119,79,.12);color:#f3a27f;border:1px solid rgba(240,119,79,.35);line-height:1.6}
+
+/* Admin: Razorpay payment check in the order modal */
+.payment-check{margin:10px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:.85rem;color:var(--muted);line-height:1.5}
+.payment-check i{margin-right:6px}
+.payment-check.ok{border-color:rgba(47,158,90,.45);background:rgba(47,158,90,.1);color:#cfe9d8}
+.payment-check.ok i{color:var(--success)}
+.payment-check.warn{border-color:rgba(224,86,74,.45);background:rgba(224,86,74,.1);color:#f3d2ce}
+.payment-check.warn i{color:var(--danger)}

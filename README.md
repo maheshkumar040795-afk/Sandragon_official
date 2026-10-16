@@ -119,7 +119,7 @@ deploys the same way (GitHub Pages / Firebase Hosting).
 |---|---|---|
 | 1 | Admin posts product (pic, description, price) → reflects on customer side | `admin/dashboard.html` writes to Firestore `products` collection. `index.html`/`product.html` read it live — no redeploy needed. |
 | 2 | Customer selects Color/Size, adds to cart, pays | `product.html` renders color/size pills from the product doc → `cart.html` → Razorpay Checkout. |
-| 3 | Razorpay | Integrated via Razorpay Checkout.js on the frontend + 2 Cloud Functions (`createRazorpayOrder`, `verifyRazorpayPayment`) so your `key_secret` never sits in browser code. |
+| 3 | Razorpay | Razorpay Checkout.js on the frontend + a small free Cloudflare Worker (`payment-worker/worker.js`) that works out the total from Firestore, creates the Razorpay order and verifies the payment, so the `key_secret` never sits in browser code and Firebase stays on the free Spark plan. |
 | 4 | Order reflects in admin, admin confirms → auto-drafted message → admin clicks Send | `admin/orders.html` auto-generates the WhatsApp message text the moment you open an order. Click **"Mark as Confirmed"** to update status, then **"Open WhatsApp to Send"** — this opens WhatsApp Web/App with the message pre-filled in the customer's chat; you just hit the send arrow. |
 | 5 | Admin shares order history with vendor to prepare product | **"Share with Vendor"** button drafts a message with the exact items/colors/sizes/customer address and opens WhatsApp to your vendor's number. |
 | 6 | Vendor packs & couriers → admin enters AWB → admin sends to customer via WhatsApp | Step 3 on the order modal: enter courier name + AWB, save — status becomes "Shipped". A tracking message is drafted automatically; click **"Send Tracking to Customer"** to open WhatsApp with it pre-filled. |
@@ -157,11 +157,10 @@ sandragon-ecommerce/
 │   ├── dashboard.html        → Product management (add/edit/delete, image upload)
 │   ├── orders.html           → Order pipeline + WhatsApp message drafting
 │   └── js/admin-auth.js, admin-products.js, admin-orders.js
-├── functions/
-│   ├── index.js              → Razorpay order creation + signature verification
-│   └── package.json
+├── payment-worker/
+│   └── worker.js             → Razorpay payment server (Cloudflare Worker, free)
 ├── firestore.rules           → Security rules (public read products, admin-only writes)
-├── firebase.json             → Hosting + Functions config
+├── firebase.json             → Firestore rules config
 └── assets/logo.jpeg          → Your logo
 ```
 
@@ -176,13 +175,13 @@ sandragon-ecommerce/
    - Add yourself as a user: Authentication → Users → Add user → `sandragonog@gmail.com` + a strong password. This is your admin login.
 4. Project Settings (gear icon) → General → scroll to "Your apps" → Add app → Web (`</>`) → copy the config object.
 5. Paste that config into `js/config.js` → `firebaseConfig`.
-6. Upgrade to the **Blaze (pay-as-you-go) plan** — required to deploy Cloud Functions (Razorpay verification). Blaze still has a generous free tier; a small store won't incur real cost.
+6. Stay on the free **Spark** plan. Payments run on a free Cloudflare Worker (step 4), so Blaze isn't needed.
 
 ### 2. Deploy Firestore rules
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase init      # select Firestore, Functions, Hosting; point to this folder; use existing project
+firebase init      # select Firestore; point to this folder; use existing project
 firebase deploy --only firestore:rules
 ```
 
@@ -191,29 +190,46 @@ firebase deploy --only firestore:rules
 2. Dashboard → copy your **Cloud Name** → paste into `js/config.js` → `cloudinaryConfig.cloudName`.
 3. Settings → Upload → Upload presets → Add upload preset → set **Signing Mode: Unsigned** → name it `sandragon_unsigned` (or update the name in `config.js` to match).
 
-### 4. Set up Razorpay
-1. Create an account at [razorpay.com](https://razorpay.com) and complete KYC (needed before you can accept live payments).
-2. Settings → API Keys → generate Key Id + Key Secret.
-3. Put the **Key Id** in `js/config.js` → `razorpayConfig.keyId` (safe to expose in frontend).
-4. Put the **Key Secret** only in Firebase Functions config (never in frontend code):
-   ```bash
-   firebase functions:config:set razorpay.key_id="rzp_live_xxxxx" razorpay.key_secret="xxxxxxxxxxxx"
-   ```
+### 4. Set up Razorpay (Cloudflare Worker, free)
+Payments need one small server that holds the Razorpay **Key Secret**. It runs on a free
+Cloudflare Worker, so Firebase stays on Spark and the site stays on GitHub Pages.
 
-### 5. Deploy Cloud Functions
-```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions
-```
-After deploy, copy the printed function URLs (they look like
-`https://us-central1-sandragon-store.cloudfunctions.net/createRazorpayOrder`) and set
-`functionsBaseUrl` in `js/config.js` to the base part
-(`https://us-central1-sandragon-store.cloudfunctions.net`).
+**a. Razorpay keys**
+1. The store owner signs up at [razorpay.com](https://razorpay.com) with his own PAN and bank
+   account (payments are paid into that account).
+2. Switch the dashboard to **Test Mode** → Account & Settings → **API Keys** → Generate Test Key.
+   Copy the **Key Id** (`rzp_test_...`) and keep the **Key Secret** safe; Razorpay shows it once.
+3. Account & Settings → **Payment capture** → make sure payments are captured **automatically**.
+
+**b. Create the worker**
+1. Sign up free at [dash.cloudflare.com](https://dash.cloudflare.com).
+2. **Workers & Pages → Create → Create Worker** → name it `sandragon-pay` → **Deploy**.
+3. **Edit code** → delete everything → paste the whole of `payment-worker/worker.js` → **Deploy**.
+4. Worker → **Settings → Variables and Secrets → Add**:
+   - `RAZORPAY_KEY_ID` (Text) = `rzp_test_...`
+   - `RAZORPAY_KEY_SECRET` (**Secret**) = the Key Secret
+   - Optional `ALLOWED_ORIGINS` (Text): the site's address(es), comma separated, if you move to
+     your own domain (default: `https://maheshkumar040795-afk.github.io` + localhost).
+5. Copy the worker's address, e.g. `https://sandragon-pay.yourname.workers.dev`. Opening it in a
+   browser should show `{"ok":true,"mode":"test"}`.
+
+**c. Connect the site**
+In `js/config.js` set `razorpayConfig.keyId` to the `rzp_test_...` Key Id and
+`paymentServerUrl` to the worker address. Demo mode switches off by itself.
+
+**d. Test, then go live**
+Pay with Razorpay's test card / test UPI. The order appears in Admin → Orders, and opening it
+shows "Paid ₹X, confirmed by Razorpay". After KYC is approved, generate **Live** keys and
+replace both values (`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` in Cloudflare, `keyId` in config.js).
+
+Refunds for cancelled or returned orders are made from the Razorpay dashboard
+(Transactions → Payments → Refund).
+
+### 5. (No longer needed) Cloud Functions
+The old `functions/` folder was replaced by the Cloudflare Worker above.
 
 ### 6. Fill in `js/config.js` completely
-This one file holds everything: Firebase config, Cloudinary, Razorpay key, Functions URL, your
+This one file holds everything: Firebase config, Cloudinary, Razorpay key, payment server URL, your
 business phone numbers, email, Instagram, and — importantly — **your vendor's WhatsApp number**
 (`business.vendorPhone`), which the admin panel uses for the "Share with Vendor" button.
 
@@ -257,3 +273,24 @@ Go to `yoursite.com/admin/login.html`, sign in, click **Add Product**, upload im
   pill on the product page, not a color circle. Easy to add real color swatches later if wanted.
 - Test Razorpay first in **Test Mode** (test API keys) before going live with real KYC-verified
   keys.
+
+---
+
+## Update — 16 Oct 2026: Razorpay payments without Blaze
+
+- **Payment server on Cloudflare Workers (free).** `payment-worker/worker.js` replaces the old
+  Firebase Cloud Functions, which needed the Blaze plan and used deprecated Firebase APIs.
+  Firebase stays on Spark; the site stays on GitHub Pages.
+- **The total is worked out on the server.** The worker reads the live product prices, coupon,
+  points settings, the customer's points balance and the delivery charge from Firestore and
+  creates the Razorpay order for that amount. A price edited in the browser is ignored; if the
+  totals disagree, checkout refreshes and shows the shopper the correct total first.
+- **Signature check after payment**, and if the payment server can't be reached at that moment
+  the order is still saved (the money was taken) and flagged for the admin.
+- **Admin → Orders → open an order** shows a live check from Razorpay: "Paid ₹X by UPI,
+  confirmed by Razorpay", or a red warning if the payment is missing, failed, refunded or the
+  amount doesn't match the order.
+- Razorpay order notes include the customer's name, phone and items, so a payment can always be
+  matched to a customer from the Razorpay dashboard.
+- Setup: see **Setup step 4**. Until `keyId` and `paymentServerUrl` are filled in, checkout stays
+  in demo mode.

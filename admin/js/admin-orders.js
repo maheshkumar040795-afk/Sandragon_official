@@ -3,7 +3,7 @@ import {
   db, collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, serverTimestamp, runTransaction
 } from "../../js/firebase-init.js";
 import { exportToExcel, fmtDate } from "./admin-export.js";
-import { business } from "../../js/config.js";
+import { business, paymentServerUrl } from "../../js/config.js";
 import { getPointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
 
 let pointsConfig = null;
@@ -546,7 +546,8 @@ function openOrder(id) {
     </div>` : ''}
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
-    <div class="stock-note">Payment ID: ${o.paymentId}</div>
+    <div class="stock-note">Payment ID: ${o.paymentId}${o.paymentMode ? ' · ' + o.paymentMode : ''}</div>
+    <div id="paymentCheck" class="payment-check" hidden></div>
     ${o.status === 'cancel_requested' ? cancelRequestPanelHtml(o) : o.status === 'cancelled' ? cancelPanelHtml(o) : pointsStatusHtml(o)}
     ${returnsPanelHtml(o)}
   `;
@@ -589,6 +590,61 @@ function openOrder(id) {
   }
 
   modal.classList.add('open');
+  checkPayment(o);
+}
+
+// Asks Razorpay (through the payment server) what really happened to this
+// order's payment, so the admin never ships an order that wasn't paid.
+const PAY_URL = String(paymentServerUrl || '').replace(/\/+$/, '');
+const paymentCheckCache = {};
+
+async function checkPayment(o) {
+  const box = document.getElementById('paymentCheck');
+  if (!box) return;
+  const id = String(o.paymentId || '');
+  if (!/^pay_/.test(id)) return; // demo / manual orders have nothing to check
+  box.hidden = false;
+  if (!/^https:\/\//.test(PAY_URL)) {
+    box.className = 'payment-check warn';
+    box.innerHTML = '<i class="fas fa-circle-info"></i> Payment server address isn\'t set in js/config.js, so this payment can\'t be checked here. Check it in the Razorpay dashboard.';
+    return;
+  }
+  box.className = 'payment-check';
+  box.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking payment with Razorpay...';
+  try {
+    let r = paymentCheckCache[id];
+    if (!r) {
+      const res = await fetch(`${PAY_URL}/payment?id=${encodeURIComponent(id)}`);
+      r = await res.json();
+      if (!res.ok) throw new Error(r.error || 'HTTP ' + res.status);
+      if (r.found && ['captured', 'refunded'].includes(r.status)) paymentCheckCache[id] = r;
+    }
+    if (currentOrderId !== o.id) return; // admin opened another order meanwhile
+    box.innerHTML = paymentCheckHtml(o, r);
+    box.className = 'payment-check ' + (r.found && r.status === 'captured' && Math.round(r.amount) === Math.round(Number(o.totalAmount)) && (!r.orderId || !o.razorpayOrderId || r.orderId === o.razorpayOrderId) ? 'ok' : 'warn');
+  } catch (err) {
+    console.warn('Payment check failed', err);
+    if (currentOrderId !== o.id) return;
+    box.className = 'payment-check warn';
+    box.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Couldn\'t reach the payment server to check this payment. Check it in the Razorpay dashboard.';
+  }
+}
+
+function paymentCheckHtml(o, r) {
+  const inrS = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+  if (!r.found) return '<i class="fas fa-triangle-exclamation"></i> <strong>Razorpay has no payment with this ID.</strong> Don\'t ship this order until you have checked it.';
+  const method = r.method ? ` by ${String(r.method).toUpperCase()}` : '';
+  const amountOk = Math.round(r.amount) === Math.round(Number(o.totalAmount));
+  const orderOk = !r.orderId || !o.razorpayOrderId || r.orderId === o.razorpayOrderId;
+  const parts = [];
+  if (r.status === 'captured') parts.push(`<i class="fas ${amountOk && orderOk ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> <strong>Paid ${inrS(r.amount)}${method}</strong>, confirmed by Razorpay.`);
+  else if (r.status === 'refunded') parts.push(`<i class="fas fa-rotate-left"></i> <strong>Refunded ${inrS(r.amountRefunded || r.amount)}</strong> of ${inrS(r.amount)}${method}.`);
+  else if (r.status === 'authorized') parts.push(`<i class="fas fa-hourglass-half"></i> <strong>${inrS(r.amount)} authorised but not captured.</strong> Capture it in the Razorpay dashboard, or Razorpay will refund it automatically.`);
+  else parts.push(`<i class="fas fa-triangle-exclamation"></i> <strong>Payment status: ${r.status}.</strong> This order has not been paid.`);
+  if (r.status === 'captured' && r.amountRefunded > 0) parts.push(`${inrS(r.amountRefunded)} of it has been refunded.`);
+  if (!amountOk) parts.push(`<strong>Amount doesn't match:</strong> the order says ${inrS(o.totalAmount)}, Razorpay received ${inrS(r.amount)}.`);
+  if (!orderOk) parts.push('<strong>This payment belongs to a different Razorpay order.</strong>');
+  return parts.join(' ');
 }
 
 document.getElementById('closeModalBtn').addEventListener('click', () => modal.classList.remove('open'));
