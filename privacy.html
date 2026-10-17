@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy | SANDRAGON</title>
+<meta name="description" content="How SANDRAGON collects, uses, shares and protects your personal information.">
+<meta name="theme-color" content="#0b0b0b">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://res.cloudinary.com">
+<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js">
+<link rel="modulepreload" href="js/firebase-init.js">
+<link rel="stylesheet" href="css/style.css?v=20261016e">
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="vendor/fontawesome/css/all.min.css"></noscript>
+<link rel="icon" href="assets/logo.jpeg">
+<script type="speculationrules">
+{
+  "prerender": [{ "where": { "and": [
+      { "selector_matches": "a[href^=\"product.html\"]" },
+      { "not": { "selector_matches": "[target]" } }
+    ] }, "eagerness": "moderate" }],
+  "prefetch": [{ "where": { "and": [
+      { "selector_matches": "a[href$=\".html\"], a[href^=\"index.html?\"], a[href^=\"terms.html#\"]" },
+      { "not": { "selector_matches": "a[href^=\"admin\"], a[href^=\"product.html\"], [target]" } }
+    ] }, "eagerness": "moderate" }]
+}
+</script>
+</head>
+<body class="light-theme">
+
+<header class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.jpeg" alt="SANDRAGON"><span class="brand-word">SAN<span class="brand-d">D</span><span class="brand-tail">RAGON</span></span></a>
+
+    <div class="nav-search">
+      <input type="text" id="siteSearchInput" placeholder="Search bats, balls, gloves…" autocomplete="off">
+      <button type="button" id="siteSearchBtn" aria-label="Search"><i class="fas fa-search"></i></button>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+
+    <nav class="nav-links" id="navLinks">
+      <a href="index.html">Shop</a>
+      <div class="nav-cat-wrap">
+        <a href="index.html" class="nav-cat-trigger">Categories <i class="fas fa-chevron-down"></i></a>
+        <div class="mega-menu" id="categoryMegaMenu"></div>
+      </div>
+      <a href="order-history.html">Order History</a>
+      <a href="wishlist.html" class="cart-icon wishlist-nav-icon"><i class="fas fa-heart"></i> Wishlist
+        <span class="cart-count" id="wishlistCount" data-count="0">0</span>
+      </a>
+      <a href="cart.html" class="cart-icon"><i class="fas fa-shopping-bag"></i> Cart
+        <span class="cart-count" id="cartCount" data-count="0">0</span>
+      </a>
+      <div class="nav-account" id="navAccount"></div>
+      <a href="admin/login.html" title="Admin" style="opacity:.35"><i class="fas fa-lock"></i></a>
+    </nav>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Menu" aria-controls="navLinks"><i class="fas fa-bars"></i></button>
+  </div>
+</header>
+
+<div class="container policy-page" style="padding:50px 20px;max-width:820px">
+  <a class="back-btn" onclick="history.length > 1 ? history.back() : window.location.href='index.html'"><i class="fas fa-arrow-left"></i> Back</a>
+  <h2 class="section-title" style="margin-top:0">Privacy Policy</h2>
+  <p class="policy-updated">Last updated: 17 October 2026</p>
+
+  <nav class="policy-toc" aria-label="On this page">
+    <a href="#who-we-are">Who We Are</a>
+    <a href="#what-we-collect">What We Collect</a>
+    <a href="#how-we-use">How We Use It</a>
+    <a href="#sharing">Who We Share It With</a>
+    <a href="#on-your-device">On Your Device</a>
+    <a href="#storage">Storage &amp; Security</a>
+    <a href="#retention">How Long We Keep It</a>
+    <a href="#your-rights">Your Rights</a>
+    <a href="#grievance">Grievance Officer</a>
+  </nav>
+
+  <section id="who-we-are" class="policy-section">
+    <h3>1. Who We Are</h3>
+    <p>This website is run by <strong>SANDRAGON</strong> (founder: Shanmuganathan.K), a sports and fitness store in India. This policy explains what personal information we collect when you browse, sign in with your mobile number, shop, review a product or contact us, and how we look after it. It is written to meet the Digital Personal Data Protection Act, 2023 and the Information Technology Act, 2000 and its rules.</p>
+    <p>By using this website or placing an order, you agree to this policy. If you don't agree, please don't use the website.</p>
+  </section>
+
+  <section id="what-we-collect" class="policy-section">
+    <h3>2. What We Collect</h3>
+    <p><strong>Information you give us</strong></p>
+    <ul class="policy-list">
+      <li><strong>Account and delivery details:</strong> your name, 10-digit mobile number, email address (optional), delivery address and pincode.</li>
+      <li><strong>Order details:</strong> the products, sizes and options you buy, prices, coupon used, delivery charge, and order, cancellation and return status, including the reason you give for a cancellation or return.</li>
+      <li><strong>Purchase points:</strong> the points you earn, redeem and have left.</li>
+      <li><strong>Reviews:</strong> the name, star rating and comment you post on a product. <em>Reviews are public</em> and shown to every visitor.</li>
+      <li><strong>Messages:</strong> anything you send us on WhatsApp, by phone or email, including dealer enquiries (name, mobile number, message).</li>
+    </ul>
+    <p><strong>Payment information</strong></p>
+    <p>Online payments are handled by <strong>Razorpay</strong>. Your card number, CVV, UPI PIN and net-banking password go directly to Razorpay and never reach us. We only receive the payment ID, amount, payment method (for example UPI or card) and whether the payment succeeded or was refunded.</p>
+    <p><strong>What we don't collect</strong></p>
+    <p>We don't use advertising trackers or sell data to advertisers, and we don't ask for sensitive details such as Aadhaar, PAN, health or bank account information to place an order.</p>
+  </section>
+
+  <section id="how-we-use" class="policy-section">
+    <h3>3. How We Use Your Information</h3>
+    <ul class="policy-list">
+      <li>To process, pack, ship and deliver your order, and to handle cancellations, returns, exchanges and refunds.</li>
+      <li>To send you order confirmations, dispatch and tracking updates on WhatsApp, and to reply when you contact us.</li>
+      <li>To show your order history and points balance when you sign in with your mobile number.</li>
+      <li>To run the purchase points programme and apply coupons.</li>
+      <li>To prevent fraud, check that payments are genuine, and keep the website secure.</li>
+      <li>To keep accounting and tax records as required by Indian law.</li>
+    </ul>
+    <p>We only send marketing or offer messages if you have agreed to receive them, and you can ask us to stop at any time.</p>
+  </section>
+
+  <section id="sharing" class="policy-section">
+    <h3>4. Who We Share It With</h3>
+    <p>We <strong>never sell</strong> your personal information. We share only what is needed with:</p>
+    <ul class="policy-list">
+      <li><strong>Packing partners and courier companies:</strong> your name, mobile number, delivery address, pincode and the items ordered, so your parcel can be packed and delivered.</li>
+      <li><strong>Razorpay:</strong> your name, mobile number, email and order amount, to process the payment.</li>
+      <li><strong>Service providers that run this website:</strong> Google Firebase (database), Cloudflare (payment server), Cloudinary (product images) and GitHub Pages (website hosting). They store or process data only to provide their service to us.</li>
+      <li><strong>WhatsApp (Meta):</strong> when we message you or you message us on WhatsApp, WhatsApp's own privacy policy applies to that chat.</li>
+      <li><strong>Government or legal authorities:</strong> only when the law requires it, or to protect our rights or prevent fraud.</li>
+    </ul>
+  </section>
+
+  <section id="on-your-device" class="policy-section">
+    <h3>5. Information Stored on Your Device</h3>
+    <p>The website saves a few things in your browser's local storage so it works faster and remembers you: your cart, wishlist, recently viewed products, your sign-in details (name and mobile number), and a copy of the product list. This stays on your device and you can clear it at any time from your browser settings. Clearing it signs you out and empties your cart. We don't use advertising cookies.</p>
+  </section>
+
+  <section id="storage" class="policy-section">
+    <h3>6. Storage &amp; Security</h3>
+    <p>Your information is stored with Google Firebase and our other service providers, whose servers may be located in India or other countries. All data travels over an encrypted (HTTPS) connection. Only the store's admin account can change products, points and order status, apart from the cancellation and return requests you make yourself. We take reasonable security steps, but no website can be 100% secure, so please contact us immediately if you notice anything suspicious on your account or orders.</p>
+  </section>
+
+  <section id="retention" class="policy-section">
+    <h3>7. How Long We Keep It</h3>
+    <p>We keep order and payment records for as long as Indian tax and accounting laws require. We keep your account details and points while you use the store. If you ask us to delete your account, we delete or anonymise the details we're not legally required to keep.</p>
+  </section>
+
+  <section id="your-rights" class="policy-section">
+    <h3>8. Your Rights</h3>
+    <p>Under the Digital Personal Data Protection Act, 2023, you can ask us to:</p>
+    <ul class="policy-list">
+      <li><strong>See</strong> the personal information we hold about you and who we have shared it with.</li>
+      <li><strong>Correct or update</strong> wrong or outdated details (you can also edit your name, email and address yourself in <a href="profile.html">My Account</a>).</li>
+      <li><strong>Delete</strong> your information, except what we must keep by law.</li>
+      <li><strong>Withdraw your consent</strong>, for example to stop WhatsApp offer messages. This doesn't affect anything done before you withdrew it, and we may not be able to process new orders without the details needed to deliver them.</li>
+      <li><strong>Nominate</strong> someone to exercise these rights for you in case of death or incapacity.</li>
+      <li><strong>Raise a complaint</strong> with our Grievance Officer (below), and if you're not satisfied, with the Data Protection Board of India.</li>
+    </ul>
+    <p>To make a request, message us on WhatsApp or email us from the mobile number or email on your account. We'll reply within 30 days.</p>
+  </section>
+
+  <section id="children" class="policy-section">
+    <h3>9. Children</h3>
+    <p>This website is meant for people aged 18 and over. Anyone under 18 should use it only with a parent or guardian, who places the order. We don't knowingly collect personal information from children without a parent's or guardian's consent.</p>
+  </section>
+
+  <section id="changes" class="policy-section">
+    <h3>10. Changes to This Policy</h3>
+    <p>We may update this policy as the store or the law changes. The new version is always published on this page with a new "Last updated" date. For important changes, we'll also tell you on the website or on WhatsApp.</p>
+  </section>
+
+  <section id="grievance" class="policy-section policy-highlight">
+    <h3><i class="fas fa-user-shield gold"></i> 11. Grievance Officer &amp; Contact</h3>
+    <p>For any question, request or complaint about your personal information, contact:</p>
+    <p>
+      <strong>Shanmuganathan.K</strong>, Founder &amp; Grievance Officer, SANDRAGON<br>
+      <i class="fas fa-envelope gold"></i> <a href="mailto:sandragonog@gmail.com">sandragonog@gmail.com</a><br>
+      <i class="fab fa-whatsapp gold"></i> <a href="https://wa.me/919791162430" target="_blank" rel="noopener">+91 97911 62430</a> &nbsp;·&nbsp; +91 90258 71881
+    </p>
+    <p>We'll respond to your complaint within 30 days.</p>
+  </section>
+</div>
+
+<footer>
+  <p class="footer-links-inline"><a href="index.html">Shop</a> &nbsp;·&nbsp; <a href="terms.html">Terms &amp; Conditions</a> &nbsp;·&nbsp; <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp; <a href="terms.html#return-exchange">Return &amp; Exchange</a> &nbsp;·&nbsp; <a href="track-order.html">Track Order</a></p>
+  <p class="mt-10">&copy; <span id="year"></span> SANDRAGON. All rights reserved.</p>
+</footer>
+
+<div class="floating-buttons">
+  <a href="https://wa.me/919791162430" class="float-btn whatsapp-btn" target="_blank"><i class="fab fa-whatsapp"></i></a>
+  <a href="tel:+919791162430" class="float-btn call-btn"><i class="fas fa-phone"></i></a>
+</div>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+document.getElementById('hamburgerBtn').addEventListener('click', () => {
+  document.getElementById('navLinks').classList.toggle('active');
+});
+</script>
+<script type="module" src="js/nav-features.js?v=20261016e"></script>
+<script type="module" src="js/dealer-cta.js?v=20261016e"></script>
+<script src="js/premium.js?v=20261015" defer></script>
+</body>
+</html>
