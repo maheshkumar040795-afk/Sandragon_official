@@ -31,7 +31,7 @@ export const razorpayConfig = {
 // The worker's address, e.g. "https://sandragon-pay.yourname.workers.dev"
 // (no slash at the end). While this or the Key ID above is still a
 // placeholder, checkout runs in demo mode with no real payment.
-export const paymentServerUrl = "YOUR_WORKER_URL";
+export const paymentServerUrl = "https://sandragon-pay.sandragonofficial.workers.dev";
 
 // ---- Business details ----
 export const business = {
