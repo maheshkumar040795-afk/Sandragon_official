@@ -185,19 +185,23 @@ function renderPills() {
   if (!usable.length) { pillsWrap.style.display = 'none'; return; }
   pillsWrap.style.display = '';
 
-  pillsWrap.innerHTML = `
-    <button type="button" class="cat-pill ${!activeCategory ? 'active' : ''}" data-cat="">All</button>
-    ${usable.map(c => `
-      <button type="button" class="cat-pill ${activeCategory === c.id ? 'active' : ''}" data-cat="${c.id}">
-        ${categoryVisualHtml(c, 'cat-pill-icon')} ${escapeHtml(c.name)}
-      </button>
-    `).join('')}
-  `;
+  const counts = {};
+  allProducts.forEach(x => { if (x.data.category) counts[x.data.category] = (counts[x.data.category] || 0) + 1; });
+  const card = (id, name, visual, count) => `
+    <button type="button" class="cat-pill ${activeCategory === id ? 'active' : ''}" data-cat="${escapeHtml(id)}" aria-pressed="${activeCategory === id}">
+      ${visual}
+      <span class="cat-pill-name">${escapeHtml(name)}</span>
+      <span class="cat-pill-count">${count} item${count === 1 ? '' : 's'}</span>
+    </button>`;
+  pillsWrap.innerHTML =
+    card('', 'All', '<span class="cat-pill-icon"><i class="fas fa-border-all"></i></span>', allProducts.length) +
+    usable.map(c => card(c.id, c.name, categoryVisualHtml(c, 'cat-pill-icon'), counts[c.id] || 0)).join('');
   pillsWrap.querySelectorAll('.cat-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       activeCategory = pill.dataset.cat;
-      pillsWrap.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+      pillsWrap.querySelectorAll('.cat-pill').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
       pill.classList.add('active');
+      pill.setAttribute('aria-pressed', 'true');
       // Keep the chosen pill visible inside the horizontal scroller on phones.
       pill.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
       updateUrl();

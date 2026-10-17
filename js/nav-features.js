@@ -9,22 +9,93 @@ import { getCustomer } from "./customer-store.js";
 import { openAccountModal } from "./account-gate.js";
 import { updateWishlistBadge } from "./wishlist-store.js";
 
-/* ---------------- Category mega-menu ---------------- */
-function renderMegaMenuItems(menu) {
-  const body = CATEGORIES.length
-    ? `<div class="mega-menu-grid">
-        ${CATEGORIES.map(c => `
-          <a href="index.html?category=${c.id}" class="mega-menu-item">
-            ${categoryVisualHtml(c, 'mega-menu-icon')}
-            <span>${c.name}</span>
-          </a>
-        `).join('')}
+/* ---------------- Category mega-menu ----------------
+   Two panes: the category list on the left (icon, name, how many items),
+   and on the right a preview of a few products from whichever category is
+   hovered or focused, so shoppers see what's inside before clicking.
+   Product data comes from the cached catalog the storefront already keeps,
+   so the preview costs no extra Firestore reads. */
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const inrS = (n) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+let megaActiveId = '';
+let megaFetched = null; // fallback when nothing is cached yet (first visit)
+
+function megaProducts() {
+  return (getCachedProducts() || megaFetched || []).filter(x => x.data && x.data.active !== false);
+}
+
+function megaCounts(list) {
+  const counts = {};
+  list.forEach(({ data }) => { if (data.category) counts[data.category] = (counts[data.category] || 0) + 1; });
+  return counts;
+}
+
+function megaPreviewHtml(cat, list) {
+  if (!cat) return '';
+  const items = list.filter(x => x.data.category === cat.id).slice(0, 6);
+  const cards = items.length
+    ? `<div class="mega-preview-grid">
+        ${items.map(({ id, data: p }) => {
+          const img = (p.images && p.images[0]) || 'assets/logo.jpeg';
+          const mrp = Number(p.mrp) > Number(p.price) ? Number(p.mrp) : 0;
+          return `
+          <a href="product.html?id=${encodeURIComponent(id)}" class="mega-product">
+            <span class="mega-product-img"><img src="${cld(img, 240)}" data-orig="${escHtml(img)}" onerror="${IMG_FALLBACK}" alt="" loading="lazy" decoding="async"></span>
+            <span class="mega-product-name">${escHtml(p.name)}</span>
+            <span class="mega-product-price">${inrS(p.price)}${mrp ? ` <s>${inrS(mrp)}</s>` : ''}</span>
+          </a>`;
+        }).join('')}
       </div>`
-    : `<div class="mega-menu-empty">Categories are loading… <br>or browse everything below.</div>`;
+    : `<div class="mega-preview-empty">${categoryVisualHtml(cat, 'mega-preview-empty-icon')}<span>New ${escHtml(cat.name)} arriving soon.</span></div>`;
+  return `
+    <div class="mega-preview-head">
+      <span class="mega-preview-title">${escHtml(cat.name)}</span>
+      <a href="index.html?category=${encodeURIComponent(cat.id)}" class="mega-preview-link">Shop all <i class="fas fa-arrow-right"></i></a>
+    </div>
+    ${cards}`;
+}
+
+function renderMegaMenuItems(menu) {
+  if (!CATEGORIES.length) {
+    menu.innerHTML = `
+      <div class="mega-menu-empty">Categories are loading… <br>or browse everything below.</div>
+      <a href="index.html#productGrid" class="mega-menu-all">View all products <i class="fas fa-arrow-right"></i></a>`;
+    return;
+  }
+  const list = megaProducts();
+  const counts = megaCounts(list);
+  if (!CATEGORIES.some(c => c.id === megaActiveId)) {
+    // Start on the first category that has something to show.
+    megaActiveId = (CATEGORIES.find(c => counts[c.id]) || CATEGORIES[0]).id;
+  }
+  const active = CATEGORIES.find(c => c.id === megaActiveId);
   menu.innerHTML = `
-    ${body}
-    <a href="index.html#productGrid" class="mega-menu-all">View All Products <i class="fas fa-arrow-right"></i></a>
-  `;
+    <div class="mega-menu-inner">
+      <div class="mega-menu-list" role="list">
+        ${CATEGORIES.map(c => `
+          <a href="index.html?category=${encodeURIComponent(c.id)}" class="mega-menu-item${c.id === megaActiveId ? ' is-active' : ''}" data-cat="${escHtml(c.id)}" role="listitem">
+            ${categoryVisualHtml(c, 'mega-menu-icon')}
+            <span class="mega-menu-text">
+              <span class="mega-menu-name">${escHtml(c.name)}</span>
+              ${list.length ? `<span class="mega-menu-count">${counts[c.id] ? `${counts[c.id]} item${counts[c.id] === 1 ? '' : 's'}` : 'Coming soon'}</span>` : ''}
+            </span>
+            <i class="fas fa-chevron-right mega-menu-go" aria-hidden="true"></i>
+          </a>`).join('')}
+      </div>
+      <div class="mega-preview" aria-live="polite">${megaPreviewHtml(active, list)}</div>
+    </div>
+    <a href="index.html#productGrid" class="mega-menu-all">
+      View all products${list.length ? ` <span class="mega-menu-all-count">${list.length}</span>` : ''} <i class="fas fa-arrow-right"></i>
+    </a>`;
+}
+
+function setMegaActive(menu, id) {
+  if (!id || id === megaActiveId) return;
+  megaActiveId = id;
+  menu.querySelectorAll('.mega-menu-item').forEach(el => el.classList.toggle('is-active', el.dataset.cat === id));
+  const pane = menu.querySelector('.mega-preview');
+  const cat = CATEGORIES.find(c => c.id === id);
+  if (pane) pane.innerHTML = megaPreviewHtml(cat, megaProducts());
 }
 
 function buildMegaMenu() {
@@ -41,16 +112,39 @@ function buildMegaMenu() {
   // Categories refresh in the background; re-render if they changed.
   window.addEventListener('sandragon:categories-updated', () => renderMegaMenuItems(menu));
 
+  // Hovering or tabbing onto a category swaps the product preview.
+  const pick = (e) => {
+    const item = e.target.closest('.mega-menu-item');
+    if (item && menu.contains(item)) setMegaActive(menu, item.dataset.cat);
+  };
+  menu.addEventListener('pointerover', (e) => { if (e.pointerType === 'mouse') pick(e); });
+  menu.addEventListener('focusin', pick);
+
   const wrap = menu.closest('.nav-cat-wrap');
   if (!wrap) return;
   const trigger = wrap.querySelector('.nav-cat-trigger');
+  // First time the menu opens without a cached catalog (first visit),
+  // load it once so counts and previews fill in.
+  let warmed = false;
+  const warm = () => {
+    if (warmed) return;
+    warmed = true;
+    if (getCachedProducts()) return renderMegaMenuItems(menu);
+    fetchActiveProducts().then(list => { megaFetched = list; renderMegaMenuItems(menu); }).catch(() => {});
+  };
+  wrap.addEventListener('pointerenter', warm);
+  wrap.addEventListener('focusin', warm);
   // Touch/click support (desktop hover is handled purely in CSS)
   trigger?.addEventListener('click', (e) => {
     e.preventDefault();
+    warm();
     wrap.classList.toggle('open');
   });
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target)) wrap.classList.remove('open');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && wrap.classList.contains('open')) { wrap.classList.remove('open'); trigger?.focus(); }
   });
 }
 
@@ -268,6 +362,12 @@ function setupSearch() {
 // which may delay this module until after DOMContentLoaded has fired, so
 // run immediately if the DOM is already parsed, otherwise wait for it.
 function initNav() {
+  // index.html loads this file twice (once from the page with a ?v= cache
+  // key, once via store.js's import), which the browser treats as two
+  // modules. Only the first may wire up the navbar, or every toggle fires
+  // twice and the mobile Categories menu opens and closes in one tap.
+  if (window.__sdNavInit) return;
+  window.__sdNavInit = true;
   buildMegaMenu();
   setupSearch();
   buildAccountNav();

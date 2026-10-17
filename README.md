@@ -294,3 +294,30 @@ Go to `yoursite.com/admin/login.html`, sign in, click **Add Product**, upload im
   matched to a customer from the Razorpay dashboard.
 - Setup: see **Setup step 4**. Until `keyId` and `paymentServerUrl` are filled in, checkout stays
   in demo mode.
+
+---
+
+## Update — 16 Oct 2026: Modern Categories menu
+
+- **Two-pane Categories menu.** Left: every category with its icon tile, name and how many
+  products it has ("Coming soon" when empty). Right: a live preview of up to 6 products from the
+  hovered category (photo, name, price with struck-out MRP) and a "Shop all" link.
+- Uses the product list the store already caches, so the preview adds no extra Firestore reads.
+- Short 180 ms fade-and-lift on open, gold highlight bar on the active category, Esc closes it,
+  keyboard Tab moves through categories and updates the preview.
+- Phones: a clean 2-column category grid inside the hamburger menu (no preview pane).
+- Fix: on the home page the navbar script ran twice, so tapping **Categories** on a phone opened
+  and closed the menu in the same tap. It now runs once.
+
+---
+
+## Update — 17 Oct 2026: Category cards + Request a Product
+
+- **Shop-by-category cards** on the home page replace the small pills: icon tile, name and item
+  count; the selected category turns black with a gold icon. Phones get a swipeable row (the first
+  card no longer hides under the screen edge).
+- **Request a Product** tab sits above **Become a Dealer** on every customer page (and in the home
+  footer). Shoppers fill in product, brand/model, size/colour/flavour, quantity, budget, link or
+  details, name, mobile and city/pincode; it drafts a WhatsApp message to the store so it can be
+  sourced from a vendor. Name, mobile and pincode are pre-filled for signed-in shoppers. Nothing is
+  stored on the website.
