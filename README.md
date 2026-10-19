@@ -321,3 +321,38 @@ Go to `yoursite.com/admin/login.html`, sign in, click **Add Product**, upload im
   details, name, mobile and city/pincode; it drafts a WhatsApp message to the store so it can be
   sourced from a vendor. Name, mobile and pincode are pre-filled for signed-in shoppers. Nothing is
   stored on the website.
+
+---
+
+## Update — 19 Oct 2026: Go-live on sandragon.in (SEO, icons, robots, sitemap)
+
+**Files added:** `CNAME` (sandragon.in), `robots.txt`, `sitemap.xml`, `site.webmanifest`, `404.html`,
+`favicon.ico`, `apple-touch-icon.png`, `assets/icons/*` (16/32/192/512/maskable), `assets/og-image.jpg`
+(1200×630 link-preview image).
+
+**SEO:** every public page has its own title, description, canonical URL (https://sandragon.in/…),
+Open Graph/Twitter tags and favicons; the home page has keywords and Organization/WebSite (search box)
+structured data, plus a visible "Sports equipment, gym gear & supplements, delivered fast" section.
+Product pages set their own title, description, share image and Product structured data (price,
+stock, rating) when they load; category views get titles like "Bats Online | Buy Bats at SANDRAGON".
+Cart, account, order and admin pages are `noindex`.
+
+**sitemap.xml** lists the home page, categories with products, current products and policy pages.
+Add new product URLs (`https://sandragon.in/product.html?id=<id>`) when you add products, or ask for it
+to be regenerated.
+
+### Going live checklist
+1. **DNS at your domain registrar** (for sandragon.in):
+   - `A` records for `@` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
+   - (optional) `AAAA` for `@` → `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, `2606:50c0:8003::153`
+   - `CNAME` for `www` → `maheshkumar040795-afk.github.io`
+   - Delete any old parking/forwarding records for `@` and `www`.
+2. **GitHub → repo Settings → Pages → Custom domain:** `sandragon.in` → Save. When the DNS check
+   passes and the certificate is issued, tick **Enforce HTTPS**.
+3. **Cloudflare worker:** paste the updated `payment-worker/worker.js` and Deploy (it now allows
+   sandragon.in), or add the variable `ALLOWED_ORIGINS` =
+   `https://sandragon.in,https://www.sandragon.in`.
+4. **Firebase → Authentication → Settings → Authorized domains:** add `sandragon.in` and `www.sandragon.in`.
+5. **Google Search Console:** add the domain property `sandragon.in` (verify with the DNS TXT record
+   it gives you), then **Sitemaps → submit `sitemap.xml`** and **URL inspection → Request indexing**
+   for the home page.

@@ -23,6 +23,8 @@
 // pricing rules change there, change them here too.
 
 const DEFAULT_ORIGINS = [
+  'https://sandragon.in',
+  'https://www.sandragon.in',
   'https://maheshkumar040795-afk.github.io',
   'http://localhost:8000',
   'http://127.0.0.1:8000',

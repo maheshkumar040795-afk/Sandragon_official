@@ -1,0 +1,13 @@
+# SANDRAGON — https://sandragon.in
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /cart.html
+Disallow: /order-history.html
+Disallow: /order-success.html
+Disallow: /profile.html
+Disallow: /wishlist.html
+Disallow: /payment-worker/
+Disallow: /README.md
+
+Sitemap: https://sandragon.in/sitemap.xml

@@ -1433,3 +1433,18 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 .payment-check.ok i{color:var(--success)}
 .payment-check.warn{border-color:rgba(224,86,74,.45);background:rgba(224,86,74,.1);color:#f3d2ce}
 .payment-check.warn i{color:var(--danger)}
+
+/* ---------- Home: "about the store" block (also helps search engines) ---------- */
+.seo-intro{max-width:1080px;margin:10px auto 60px;text-align:center}
+.seo-intro h2{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:clamp(1.3rem,2.6vw,1.8rem);margin-bottom:10px;color:#111}
+.seo-intro > p{max-width:760px;margin:0 auto 26px;color:#555;line-height:1.75;font-size:.95rem}
+.seo-intro-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.seo-intro-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 14px;border-radius:18px;background:#fff;border:1px solid rgba(0,0,0,.07);color:#1a1a1a;text-decoration:none;transition:transform .18s var(--ease),border-color .2s ease}
+.seo-intro-card i{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#fbf3d9,#f3e2a8);color:#8a6a10;font-size:.95rem;margin-bottom:4px}
+.seo-intro-card strong{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;font-size:.95rem}
+.seo-intro-card span{font-size:.8rem;color:#777;line-height:1.4}
+@media(hover:hover) and (pointer:fine){.seo-intro-card:hover{transform:translateY(-3px);border-color:rgba(201,162,39,.45)}}
+.seo-intro-points{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 26px;padding:0;margin:0;color:#444;font-size:.88rem}
+.seo-intro-points i{color:var(--gold);margin-right:6px}
+.seo-intro-points a{color:#8a6a10;text-decoration:underline}
+@media(max-width:800px){.seo-intro-grid{grid-template-columns:repeat(2,1fr)}}
