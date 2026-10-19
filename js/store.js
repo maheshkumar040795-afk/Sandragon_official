@@ -24,6 +24,7 @@ let activeSort = 'newest';
 let inStockOnly = false;
 let toolbarReady = false;
 let scrolledToResults = false;
+queueMicrotask(() => { if (activeCategory || activeSearch) setListingSeo(); });
 
 const NEW_WINDOW_DAYS = 14;
 const CARD_SIZES = '(max-width: 600px) 48vw, (max-width: 1000px) 31vw, 280px';
@@ -176,6 +177,17 @@ function updateUrl() {
   if (activeSearch) params.set('search', activeSearch);
   const qs = params.toString();
   history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+  setListingSeo();
+}
+
+// Category and search views get their own page title and canonical URL,
+// so a shared or indexed "Bats" link reads "Bats | SANDRAGON".
+const HOME_TITLE = document.title;
+function setListingSeo() {
+  const name = activeCategory ? (categoryName(activeCategory) || activeCategory) : '';
+  document.title = name ? `${name} Online | Buy ${name} at SANDRAGON` : activeSearch ? `"${activeSearch}" | SANDRAGON` : HOME_TITLE;
+  const canon = document.head.querySelector('link[rel="canonical"]');
+  if (canon) canon.href = 'https://sandragon.in/' + (activeCategory ? `index.html?category=${encodeURIComponent(activeCategory)}` : '');
 }
 
 function renderPills() {

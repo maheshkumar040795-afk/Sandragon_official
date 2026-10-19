@@ -77,6 +77,64 @@ async function loadProduct() {
   }
 }
 
+// Search engines and link previews (WhatsApp, Instagram) read these, so each
+// product page gets its own title, description, canonical URL, share image
+// and Product structured data (price, stock, rating) once the product loads.
+const SITE_URL = 'https://sandragon.in';
+function setMeta(attr, key, value) {
+  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el); }
+  el.setAttribute('content', value);
+}
+function applyProductSeo(p, images, inStock) {
+  const cat = p.category ? (categoryName(p.category) || p.category) : '';
+  const title = `${p.name}${cat ? ' | ' + cat : ''} | Buy Online at SANDRAGON`;
+  const plain = String(p.description || '').replace(/\s+/g, ' ').trim();
+  const desc = (plain ? plain.slice(0, 150) + (plain.length > 150 ? '…' : '') + ' ' : '') +
+    `Buy ${p.name} online for ${inr(p.price)} at SANDRAGON. Genuine product, secure payment, fast delivery across India.`;
+  const url = `${SITE_URL}/product.html?id=${encodeURIComponent(productId)}`;
+  const img = images[0] && /^https?:/.test(images[0]) ? cld(images[0], 1200) : `${SITE_URL}/assets/og-image.jpg`;
+  document.title = title;
+  setMeta('name', 'description', desc);
+  setMeta('property', 'og:type', 'product');
+  setMeta('property', 'og:title', title);
+  setMeta('property', 'og:description', desc);
+  setMeta('property', 'og:url', url);
+  setMeta('property', 'og:image', img);
+  setMeta('name', 'twitter:title', title);
+  setMeta('name', 'twitter:description', desc);
+  setMeta('name', 'twitter:image', img);
+  let canon = document.head.querySelector('link[rel="canonical"]');
+  if (!canon) { canon = document.createElement('link'); canon.rel = 'canonical'; document.head.appendChild(canon); }
+  canon.href = url;
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name,
+    image: images.filter(u => /^https?:/.test(u)).slice(0, 5).map(u => cld(u, 1200)),
+    description: plain || desc,
+    sku: productId,
+    brand: (p.brand || /sandragon/i.test(p.name)) ? { '@type': 'Brand', name: p.brand || 'SANDRAGON' } : undefined,
+    category: cat || undefined,
+    offers: {
+      '@type': 'Offer',
+      url,
+      priceCurrency: 'INR',
+      price: Number(p.price) || 0,
+      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      itemCondition: 'https://schema.org/NewCondition',
+      seller: { '@type': 'Organization', name: 'SANDRAGON' }
+    }
+  };
+  const avg = ratingAvg(p);
+  if (avg && Number(p.ratingCount) > 0) {
+    ld.aggregateRating = { '@type': 'AggregateRating', ratingValue: Number(avg).toFixed(1), reviewCount: Number(p.ratingCount) };
+  }
+  let tag = document.getElementById('productJsonLd');
+  if (!tag) { tag = document.createElement('script'); tag.type = 'application/ld+json'; tag.id = 'productJsonLd'; document.head.appendChild(tag); }
+  tag.textContent = JSON.stringify(ld);
+}
+
 function render() {
   const p = productData;
   const images = (p.images && p.images.length) ? p.images : ['assets/logo.jpeg'];
@@ -87,6 +145,7 @@ function render() {
   const lowStock = inStock && stock !== undefined && stock !== null && Number(stock) <= 5;
   const wished = isWishlisted(productId);
   const avg = ratingAvg(p);
+  try { applyProductSeo(p, images, inStock); } catch (e) { console.warn('SEO tags not set', e); }
 
   container.innerHTML = `
     <div class="pd-wrap">
