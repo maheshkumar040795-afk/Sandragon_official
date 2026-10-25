@@ -356,3 +356,29 @@ to be regenerated.
 5. **Google Search Console:** add the domain property `sandragon.in` (verify with the DNS TXT record
    it gives you), then **Sitemaps → submit `sitemap.xml`** and **URL inspection → Request indexing**
    for the home page.
+
+---
+
+## Update — 25 Oct 2026: Cashfree payments
+
+Checkout now uses **Cashfree** (Razorpay support is kept; switch with `paymentGateway` in
+`js/config.js`). The same Cloudflare Worker (`payment-worker/worker.js`) creates the Cashfree order
+from the server-side total, and confirms with Cashfree that it was **PAID** before the order is saved.
+The Cashfree pop-up opens on the cart page; if a phone's in-app browser can't show the pop-up,
+Cashfree returns the shopper to `cart.html?pay_order=…` and the order is saved then.
+Admin → Orders → open an order shows "Paid ₹X by UPI, confirmed by Cashfree" (or a red warning).
+
+### Setup
+1. **Cashfree dashboard → Developers → API Keys** (Payment Gateway, **Production**): copy the **App ID**
+   and **Secret Key**. Under **Developers → Whitelisting**, add the domain `sandragon.in`.
+2. **Cloudflare → sandragon-pay → Edit code:** paste the new `payment-worker/worker.js` → Deploy.
+3. **Settings → Variables and Secrets → Add:**
+   - `CASHFREE_APP_ID` (Text) = App ID
+   - `CASHFREE_SECRET_KEY` (**Secret**) = Secret Key
+   - `CASHFREE_ENV` (Text) = `production` (or `sandbox` with test keys)
+4. Open https://sandragon-pay.sandragonofficial.workers.dev — it should show
+   `{"ok":true,"gateway":"cashfree","mode":"production"}`.
+5. Merge this update. Place a small real order (e.g. ₹1–₹10 test product) and refund it from the
+   Cashfree dashboard (Transactions → Refund) to confirm everything end to end.
+
+Refunds for cancelled/returned orders are made from the Cashfree dashboard.

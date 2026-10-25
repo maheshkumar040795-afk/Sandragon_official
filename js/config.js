@@ -27,10 +27,17 @@ export const razorpayConfig = {
   currency: "INR"
 };
 
+// ---- Which payment gateway checkout uses ----
+// "cashfree" — keys live only in the Cloudflare Worker (CASHFREE_APP_ID /
+//              CASHFREE_SECRET_KEY); nothing secret is needed here.
+// "razorpay" — also needs razorpayConfig.keyId above.
+export const paymentGateway = "cashfree";
+
 // ---- Payment server (Cloudflare Worker) ----
 // The worker's address, e.g. "https://sandragon-pay.yourname.workers.dev"
-// (no slash at the end). While this or the Key ID above is still a
-// placeholder, checkout runs in demo mode with no real payment.
+// (no slash at the end). While this is still a placeholder (or, for
+// Razorpay, the Key ID above is), checkout runs in demo mode with no real
+// payment.
 export const paymentServerUrl = "https://sandragon-pay.sandragonofficial.workers.dev";
 
 // ---- Business details ----

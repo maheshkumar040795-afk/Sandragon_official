@@ -47,7 +47,7 @@ function formatDate(ts) {
 function paymentModeLabel(o) {
   if (o.paymentMode) return o.paymentMode;
   if (o.paymentId?.startsWith('DEMO_')) return 'Demo Order';
-  return 'Online (Razorpay)';
+  return 'Online';
 }
 
 function orderTotalsHtml(o) {

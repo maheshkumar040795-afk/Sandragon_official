@@ -1,6 +1,6 @@
 import { db, collection, addDoc, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, runTransaction } from "./firebase-init.js";
 import { getCart, saveCart, removeFromCart, updateQty, clearCart, cartTotal } from "./cart-store.js";
-import { razorpayConfig, paymentServerUrl, business } from "./config.js";
+import { razorpayConfig, paymentServerUrl, paymentGateway, business } from "./config.js";
 import { getCustomer, saveCustomer } from "./customer-store.js";
 import { toast } from "./toast.js";
 import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
@@ -8,20 +8,43 @@ import { cld, IMG_FALLBACK } from "./img.js";
 import { inr, mrpOf } from "./pricing.js";
 import { getPointsConfig, fetchPointsBalance, pointsForAmount, pointsToRupees, redeemCapRupees, DEFAULT_POINTS } from "./points-store.js";
 
-// DEMO MODE: while the Razorpay Key ID or the payment server address in
-// config.js is still a placeholder, checkout skips the real payment gateway
-// and creates the order directly, so the full customer → admin flow can be
-// tested. Switches off by itself once both are filled in.
+// DEMO MODE: while the payment server address in config.js is still a
+// placeholder (or, for Razorpay, its Key ID is), checkout skips the real
+// payment gateway and creates the order directly, so the full customer →
+// admin flow can be tested. Switches off by itself once filled in.
 const PAY_URL = String(paymentServerUrl || '').replace(/\/+$/, '');
-const DEMO_MODE = !razorpayConfig.keyId || razorpayConfig.keyId === "YOUR_RAZORPAY_KEY_ID" || !/^https:\/\//.test(PAY_URL);
-const PAY_LABEL = '<i class="fas fa-lock"></i> Pay Securely with Razorpay';
+const GATEWAY = paymentGateway === 'razorpay' ? 'razorpay' : 'cashfree';
+const DEMO_MODE = !/^https:\/\//.test(PAY_URL) ||
+  (GATEWAY === 'razorpay' && (!razorpayConfig.keyId || razorpayConfig.keyId === "YOUR_RAZORPAY_KEY_ID"));
+const PAY_LABEL = '<i class="fas fa-lock"></i> Pay Securely';
+const GATEWAY_LABEL = GATEWAY === 'razorpay' ? 'Razorpay' : 'Cashfree';
+const SDK_URL = GATEWAY === 'razorpay' ? 'https://checkout.razorpay.com/v1/checkout.js' : 'https://sdk.cashfree.com/js/v3/cashfree.js';
+const PENDING_KEY = 'sd_pending_payment';
+
+// Loads the gateway's checkout script once, only on the cart page.
+let sdkPromise = null;
+function loadPaymentSdk() {
+  if (GATEWAY === 'razorpay' && typeof window.Razorpay === 'function') return Promise.resolve();
+  if (GATEWAY === 'cashfree' && typeof window.Cashfree === 'function') return Promise.resolve();
+  if (sdkPromise) return sdkPromise;
+  sdkPromise = new Promise((resolve, reject) => {
+    const tag = document.createElement('script');
+    tag.src = SDK_URL;
+    tag.async = true;
+    tag.onload = () => resolve();
+    tag.onerror = () => { sdkPromise = null; reject(new Error('SDK failed to load')); };
+    document.head.appendChild(tag);
+  });
+  return sdkPromise;
+}
+if (!DEMO_MODE) loadPaymentSdk().catch(() => {});
 
 if (DEMO_MODE) {
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('payBtn');
     if (btn) btn.innerHTML = '<i class="fas fa-flask"></i> Place Order (Demo Mode — No Payment)';
     const note = document.querySelector('.cart-summary .stock-note');
-    if (note) note.innerHTML = '⚠️ Demo mode: Razorpay isn\'t configured yet, so this places a test order with no real payment.';
+    if (note) note.innerHTML = '⚠️ Demo mode: online payment isn\'t configured yet, so this places a test order with no real payment.';
   });
 }
 
@@ -440,18 +463,22 @@ async function handlePayment() {
   const resetPayBtn = () => { payBtn.disabled = false; payBtn.innerHTML = PAY_LABEL; };
 
   try {
-    if (typeof window.Razorpay !== 'function') {
+    try { await loadPaymentSdk(); } catch (e) {
       throw new UserFacingError('The payment window could not load. Please check your internet connection and try again.');
     }
     // 1. The payment server works out the total again from the live store
     //    prices, coupon, points and delivery settings, and creates the
-    //    Razorpay order for that amount. The browser's figure is never trusted.
+    //    gateway order for that amount. The browser's figure is never trusted.
     const created = await callPaymentServer('/create-order', {
       items: cart.map(i => ({ productId: i.productId, qty: i.qty })),
       couponCode: appliedCoupon?.code || '',
       redeemPoints: redeemOn && t.pointsUsed > 0,
       phone,
-      name
+      name,
+      email,
+      // Where Cashfree sends the shopper back if the payment can't open as a
+      // pop-up (some in-app browsers).
+      returnUrl: `${location.origin}${location.pathname}?pay_order={order_id}`
     });
     const st = created.totals;
     if (Math.round(st.total) !== Math.round(amount)) {
@@ -472,8 +499,34 @@ async function handlePayment() {
       redeemValue: st.pointsValue,
       earned: st.pointsEarned
     } : pointsMeta;
+    const ctx = {
+      gateway: created.gateway || GATEWAY,
+      gatewayOrderId: created.orderId,
+      customer: { name, phone, email, address, pincode },
+      cart,
+      subtotal: st.subtotal,
+      shippingCharge: st.shippingCharge,
+      total: st.total,
+      couponMeta,
+      pointsMeta: serverPoints,
+      at: Date.now()
+    };
 
-    // 2. Open Razorpay Checkout
+    if (ctx.gateway === 'cashfree') {
+      // Kept until the order is saved, so a shopper sent away to pay and
+      // back again (or whose tab reloads) still gets their order recorded.
+      try { localStorage.setItem(PENDING_KEY, JSON.stringify(ctx)); } catch (e) { /* storage off */ }
+      const cashfree = window.Cashfree({ mode: created.mode === 'sandbox' ? 'sandbox' : 'production' });
+      const result = await cashfree.checkout({ paymentSessionId: created.paymentSessionId, redirectTarget: '_modal' });
+      if (result?.redirect) return; // the gateway is taking the shopper to its own page; handled on return
+      payBtn.textContent = 'Confirming payment...';
+      // Whether the pop-up reported success, failure or was closed, ask the
+      // gateway what actually happened before deciding.
+      await confirmAndSaveOrder(ctx, { quietIfUnpaid: !!result?.error, resetPayBtn });
+      return;
+    }
+
+    // 2. Razorpay Checkout
     const rzp = new window.Razorpay({
       key: created.keyId || razorpayConfig.keyId,
       amount: created.amount,
@@ -486,7 +539,7 @@ async function handlePayment() {
       theme: { color: '#c9a227' },
       handler: async function (response) {
         payBtn.textContent = 'Confirming payment...';
-        await verifyAndSaveOrder(response, { name, phone, email, address, pincode }, cart, st.subtotal, st.shippingCharge, st.total, couponMeta, serverPoints, resetPayBtn);
+        await confirmAndSaveOrder(ctx, { razorpayResponse: response, resetPayBtn });
       },
       modal: { ondismiss: resetPayBtn }
     });
@@ -530,6 +583,7 @@ async function callPaymentServer(path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 400 && data.error) throw new UserFacingError(data.error, data.code);
+    if (data.code === 'NOT_CONFIGURED') throw new UserFacingError(`Online payment is being set up right now. Please message us on WhatsApp (+${business.phonePrimary}) to place your order.`, data.code);
     throw new Error(data.detail || data.error || `Payment server HTTP ${res.status}`);
   }
   return data;
@@ -645,64 +699,110 @@ async function decrementStock(cart) {
   }));
 }
 
-async function bumpCouponUsage() {
-  if (!appliedCoupon) return;
+async function bumpCouponUsage(code = appliedCoupon?.code) {
+  if (!code) return;
   try {
-    await updateDoc(doc(db, 'coupons', appliedCoupon.code), { usageCount: increment(1) });
+    await updateDoc(doc(db, 'coupons', code), { usageCount: increment(1) });
   } catch (err) {
     console.warn('Could not update coupon usage count', err);
   }
 }
 
-async function verifyAndSaveOrder(razorpayResponse, customer, cart, subtotal, shippingCharge, amount, couponMeta, pointsMeta, resetPayBtn) {
-  const paymentId = razorpayResponse.razorpay_payment_id;
-  // 3. Check Razorpay's signature on the payment server. If the server
-  //    can't be reached, the money has still been taken, so the order is
-  //    saved anyway and marked for the admin to check.
-  let payment = { gateway: 'razorpay', verified: false };
+// 3. Ask the payment server whether the order was really paid (Cashfree:
+//    order status from Cashfree; Razorpay: signature check). If the server
+//    can't be reached after a Razorpay success, the money has been taken, so
+//    the order is still saved and marked for the admin to check.
+async function confirmAndSaveOrder(ctx, { razorpayResponse = null, quietIfUnpaid = false, silentIfUnpaid = false, resetPayBtn = null } = {}) {
+  const ref = razorpayResponse?.razorpay_payment_id || ctx.gatewayOrderId;
+  let payment = { gateway: ctx.gateway, verified: false };
+  let paymentId = razorpayResponse?.razorpay_payment_id || '';
   try {
-    const v = await callPaymentServer('/verify', razorpayResponse);
+    const v = await callPaymentServer('/verify', razorpayResponse || { order_id: ctx.gatewayOrderId });
     if (!v.valid) {
-      toast(`We couldn't confirm this payment. If money was taken, please message us on WhatsApp with payment ID ${paymentId}.`, 'error', 10000);
+      if (ctx.gateway === 'cashfree') {
+        if (v.status === 'ACTIVE' && silentIfUnpaid) { /* not paid yet: nothing to say */ }
+        else if (v.status === 'ACTIVE' && quietIfUnpaid) toast('Payment was not completed. No money was taken. You can try again.', 'info', 6000);
+        else toast('The payment did not go through. No money was taken. You can try again.', 'error', 7000);
+        if (v.status !== 'ACTIVE') clearPending();
+      } else {
+        toast(`We couldn't confirm this payment. If money was taken, please message us on WhatsApp with payment ID ${ref}.`, 'error', 10000);
+      }
       resetPayBtn?.();
-      return;
+      return false;
     }
-    payment = { gateway: 'razorpay', verified: true, amountPaid: v.amountPaid ?? amount, method: v.method || '', status: v.status || '' };
+    paymentId = v.paymentId || paymentId || ctx.gatewayOrderId;
+    payment = { gateway: ctx.gateway, verified: true, amountPaid: v.amountPaid ?? ctx.total, method: v.method || '', status: v.status || '' };
   } catch (err) {
+    if (ctx.gateway === 'cashfree' && silentIfUnpaid) { resetPayBtn?.(); return false; }
+    if (ctx.gateway === 'cashfree') {
+      // Without confirmation we can't tell if Cashfree took the money, so
+      // keep the details and try again rather than saving a maybe-unpaid order.
+      console.warn('Could not confirm Cashfree payment yet', err);
+      toast(`We couldn't confirm your payment yet. If money was taken, don't pay again: reload this page in a minute, or WhatsApp us with order ID ${ctx.gatewayOrderId}.`, 'error', 12000);
+      resetPayBtn?.();
+      return false;
+    }
     console.warn('Payment verification could not run; saving order for the admin to check', err);
-    payment.checkNote = 'Not verified at checkout (payment server unreachable). Check in Razorpay.';
+    payment.checkNote = `Not verified at checkout (payment server unreachable). Check in ${GATEWAY_LABEL}.`;
   }
 
   try {
     // 4. Save order in Firestore — this is what the admin portal reads
-    const orderId = await saveOrderWithPoints({
-      customer,
-      items: cart,
-      subtotal,
-      shippingCharge,
-      coupon: couponMeta,
-      points: pointsMeta,
-      totalAmount: amount,
+    const order = {
+      customer: ctx.customer,
+      items: ctx.cart,
+      subtotal: ctx.subtotal,
+      shippingCharge: ctx.shippingCharge,
+      coupon: ctx.couponMeta,
+      points: ctx.pointsMeta,
+      totalAmount: ctx.total,
       paymentId,
-      razorpayOrderId: razorpayResponse.razorpay_order_id,
-      paymentMode: 'Online (Razorpay)',
+      gatewayOrderId: ctx.gatewayOrderId,
+      paymentMode: ctx.gateway === 'razorpay' ? 'Online (Razorpay)' : 'Online (Cashfree)',
       payment,
       status: 'placed',
       vendorShared: false,
       awbNumber: '',
       courierName: '',
       createdAt: serverTimestamp()
-    }, customer.phone, { strict: false });
-
-    await bumpCouponUsage();
-    await decrementStock(cart);
+    };
+    if (ctx.gateway === 'razorpay') order.razorpayOrderId = ctx.gatewayOrderId;
+    const orderId = await saveOrderWithPoints(order, ctx.customer.phone, { strict: false });
+    clearPending();
+    await bumpCouponUsage(ctx.couponMeta?.code);
+    await decrementStock(ctx.cart);
     clearCart();
     window.location.href = `order-success.html?orderId=${orderId}`;
+    return true;
   } catch (err) {
     console.error(err);
-    toast('Payment succeeded but we could not save your order. Please contact us on WhatsApp with your payment ID: ' + paymentId, 'error', 12000);
+    toast(`Payment succeeded but we could not save your order. Please contact us on WhatsApp with payment ID ${paymentId || ref}.`, 'error', 12000);
+    return false;
   }
 }
+
+function clearPending() {
+  try { localStorage.removeItem(PENDING_KEY); } catch (e) { /* storage off */ }
+}
+
+// Coming back from the gateway's own payment page (?pay_order=...), or the
+// tab reloaded mid-payment: finish saving that order if it was paid.
+async function resumePendingPayment() {
+  let ctx = null;
+  try { ctx = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch (e) { /* ignore */ }
+  const returned = new URLSearchParams(location.search).get('pay_order');
+  if (returned) history.replaceState(null, '', location.pathname);
+  if (!ctx || !ctx.gatewayOrderId || ctx.gateway !== 'cashfree') return;
+  if (Date.now() - (ctx.at || 0) > 2 * 24 * 60 * 60 * 1000) { clearPending(); return; }
+  if (returned && returned !== ctx.gatewayOrderId) return;
+  const payBtn = document.getElementById('payBtn');
+  if (payBtn) { payBtn.disabled = true; payBtn.textContent = 'Checking your payment...'; }
+  const ok = await confirmAndSaveOrder(ctx, { silentIfUnpaid: !returned, resetPayBtn: () => {
+    if (payBtn) { payBtn.disabled = false; payBtn.innerHTML = PAY_LABEL; }
+  } });
+  if (!ok && !returned && payBtn) { payBtn.disabled = false; payBtn.innerHTML = PAY_LABEL; }
+}
+if (!DEMO_MODE) resumePendingPayment();
 
 renderCart();
 
