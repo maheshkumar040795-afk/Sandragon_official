@@ -1445,3 +1445,8 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 /* Admin product form: Earn points / Redeem points side by side */
 .points-row{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 @media(max-width:600px){.points-row{grid-template-columns:1fr}}
+
+/* Footer: "Developed by Think Through Technology" */
+.footer-credit{margin-top:8px;font-size:.78rem;opacity:.7}
+.footer-credit a{color:var(--gold);text-decoration:none;font-weight:600}
+.footer-credit a:hover{text-decoration:underline}
