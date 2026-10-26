@@ -2,7 +2,7 @@ import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase-i
 import { getCachedProduct, getCachedProducts } from "./products-store.js";
 import { cld, imgHtml } from "./img.js";
 import { priceHtml, mrpOf, inr } from "./pricing.js";
-import { getCachedPointsConfig, getPointsConfig, pointsForAmount, pointsToRupees } from "./points-store.js";
+import { earnPointsOf, redeemPointsOf, pointsToRupees } from "./points-store.js";
 import { addToCart } from "./cart-store.js";
 import { categoryName } from "./categories.js";
 import { ensureCustomer } from "./account-gate.js";
@@ -40,7 +40,7 @@ function normalizeOptions(p) {
 // Fields that change what the page shows. If a fresh Firestore read differs
 // from the cached copy on any of these, the page re-renders with fresh data.
 function visibleSignature(p) {
-  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active, p.mrp, p.pointsRedeemable, p.returnNotApplicable]);
+  return JSON.stringify([p.name, p.price, p.description, p.images, p.stock, p.options, p.colors, p.sizes, p.category, p.ratingCount, p.ratingSum, p.active, p.mrp, p.pointsRedeemable, p.returnNotApplicable, p.earnPoints, p.redeemPoints]);
 }
 
 async function loadProduct() {
@@ -274,7 +274,9 @@ function render() {
       image: images[0],
       price: Number(p.price),
       mrp: mrpOf(p),
-      pointsRedeemable: !!p.pointsRedeemable,
+      pointsRedeemable: redeemPointsOf(p) > 0,
+      earnPoints: earnPointsOf(p),
+      redeemPoints: redeemPointsOf(p),
       returnNotApplicable: !!p.returnNotApplicable,
       // Kept for backward compatibility with older cart/order display code
       // that reads these two fields directly; `options` carries everything.
@@ -324,24 +326,20 @@ function relatedCardHtml(rid, rp) {
     </div>`;
 }
 
-// "Earn N points" and "Points can be used on this product", when the admin
-// has the points programme switched on.
-function pointsNoteHtml(p, cfg) {
-  if (!cfg?.enabled) return '';
-  const earn = pointsForAmount(Number(p.price), cfg);
+// "Earn N points" and "Use up to N points", as set on this product.
+function pointsNoteHtml(p) {
+  const earn = earnPointsOf(p);
+  const use = redeemPointsOf(p);
   const parts = [];
-  if (earn > 0) parts.push(`Earn <strong>${earn} points</strong> (worth ${inr(pointsToRupees(earn, cfg))}) on this item`);
-  if (p.pointsRedeemable) parts.push(`Use your points for up to ${cfg.maxRedeemPercent}% of this price`);
+  if (earn > 0) parts.push(`Earn <strong>${earn} points</strong> (worth ${inr(pointsToRupees(earn))}) on each one you buy`);
+  if (use > 0) parts.push(`Use up to <strong>${use} points</strong> (${inr(pointsToRupees(use))} off) on each one`);
   if (!parts.length) return '';
   return `<i class="fas fa-coins"></i><span>${parts.join('<br>')}</span>`;
 }
 
-async function renderPointsNote(p) {
-  const el = () => document.getElementById('pdPoints');
-  const cached = getCachedPointsConfig();
-  if (cached && el()) el().innerHTML = pointsNoteHtml(p, cached);
-  const fresh = await getPointsConfig();
-  if (el() && productData === p) el().innerHTML = pointsNoteHtml(p, fresh);
+function renderPointsNote(p) {
+  const el = document.getElementById('pdPoints');
+  if (el) el.innerHTML = pointsNoteHtml(p);
 }
 
 let relatedRenderedFor = null;

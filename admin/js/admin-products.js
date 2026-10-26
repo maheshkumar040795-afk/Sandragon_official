@@ -42,7 +42,7 @@ async function loadProducts() {
       <td>${p.name}${p.returnNotApplicable ? '<br><span class="stock-note">No returns</span>' : ''}</td>
       <td>${p.category ? categoryName(p.category) || p.category : '—'}</td>
       <td>₹${Number(p.price).toLocaleString('en-IN')}${Number(p.mrp) > Number(p.price) ? `<br><s class="stock-note">₹${Number(p.mrp).toLocaleString('en-IN')}</s> <span class="gold">${Math.round((p.mrp - p.price) / p.mrp * 100)}% off</span>` : ''}</td>
-      <td>${p.pointsRedeemable ? '<span class="badge confirmed">Redeem</span>' : '—'}</td>
+      <td>${pointsCellHtml(p)}</td>
       <td>${p.stock ?? '—'}</td>
       <td><span class="badge ${p.active ? 'confirmed' : 'placed'}">${p.active ? 'Live' : 'Hidden'}</span></td>
       <td>
@@ -107,7 +107,8 @@ function resetModal() {
   if (categorySelect) categorySelect.value = '';
   document.getElementById('fPrice').value = '';
   document.getElementById('fMrp').value = '';
-  document.getElementById('fPointsRedeemable').checked = false;
+  document.getElementById('fEarnPoints').value = '';
+  document.getElementById('fRedeemPoints').value = '';
   document.getElementById('fReturnNA').checked = false;
   document.getElementById('fStock').value = '';
   document.getElementById('fVendorName').value = '';
@@ -148,7 +149,8 @@ async function openModal(id) {
       const hasDiscount = Number(p.mrp) > Number(p.price);
       document.getElementById('fMrp').value = hasDiscount ? p.mrp : (p.price || '');
       document.getElementById('fPrice').value = hasDiscount ? p.price : '';
-      document.getElementById('fPointsRedeemable').checked = !!p.pointsRedeemable;
+      document.getElementById('fEarnPoints').value = Number(p.earnPoints) > 0 ? Number(p.earnPoints) : '';
+      document.getElementById('fRedeemPoints').value = Number(p.redeemPoints) > 0 ? Number(p.redeemPoints) : '';
       document.getElementById('fReturnNA').checked = !!p.returnNotApplicable;
       document.getElementById('fStock').value = p.stock ?? '';
       document.getElementById('fVendorName').value = p.vendorName || '';
@@ -310,7 +312,9 @@ document.getElementById('saveProductBtn').addEventListener('click', async () => 
     options: options.filter(o => o.values.length > 0),
     active: document.getElementById('fActive').checked,
     couponExcluded: document.getElementById('fCouponExcluded').checked,
-    pointsRedeemable: document.getElementById('fPointsRedeemable').checked,
+    earnPoints: wholePoints(document.getElementById('fEarnPoints').value),
+    redeemPoints: wholePoints(document.getElementById('fRedeemPoints').value),
+    pointsRedeemable: wholePoints(document.getElementById('fRedeemPoints').value) > 0,
     returnNotApplicable: document.getElementById('fReturnNA').checked
   };
 
@@ -344,7 +348,8 @@ document.getElementById('exportProductsBtn')?.addEventListener('click', async ()
       'Discount %': mrp ? Math.round((mrp - p.price) / mrp * 100) : 0,
       'Stock': p.stock ?? 'Unlimited',
       'Visible in Store': p.active ? 'Yes' : 'No',
-      'Points Redeem Applicable': p.pointsRedeemable ? 'Yes' : 'No',
+      'Earn Points (each)': Number(p.earnPoints) || 0,
+      'Redeem Points (each)': Number(p.redeemPoints) || 0,
       'Coupon Not Applicable': p.couponExcluded ? 'Yes' : 'No',
       'Return Not Applicable': p.returnNotApplicable ? 'Yes' : 'No',
       'Options': opts,
@@ -358,4 +363,42 @@ document.getElementById('exportProductsBtn')?.addEventListener('click', async ()
     };
   });
   exportToExcel('sandragon-products', [{ name: 'Products', rows }]);
+});
+
+// Points are whole numbers, never negative.
+function wholePoints(v) {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// Products table: "Earn 10 · Redeem 5" for the points set on each product.
+function pointsCellHtml(p) {
+  const earn = Number(p.earnPoints) || 0;
+  const redeem = Number(p.redeemPoints) || 0;
+  if (!earn && !redeem) return '—';
+  return [
+    earn ? `<span class="badge confirmed" title="Points earned per item">Earn ${earn}</span>` : '',
+    redeem ? `<span class="badge packed" title="Most points usable per item">Redeem ${redeem}</span>` : ''
+  ].filter(Boolean).join(' ');
+}
+
+// ---- Export Excel: customers and their points balances ----
+document.getElementById('exportCustomersBtn')?.addEventListener('click', async () => {
+  const snap = await getDocs(collection(db, 'customers'));
+  const rows = snap.docs.map(d => {
+    const c = d.data();
+    const bal = Number(c.pointsBalance) || 0;
+    return {
+      'Name': c.name || '',
+      'Phone': c.phone || d.id,
+      'Email': c.email || '',
+      'Address': c.address || '',
+      'Pincode': c.pincode || '',
+      'Points Balance': bal,
+      'Balance Worth (₹)': bal,
+      'Total Points Earned': Number(c.pointsEarnedTotal) || 0,
+      'Joined': fmtDate(c.createdAt)
+    };
+  }).sort((a, b) => b['Points Balance'] - a['Points Balance']);
+  exportToExcel('sandragon-customers-points', [{ name: 'Customers', rows }]);
 });

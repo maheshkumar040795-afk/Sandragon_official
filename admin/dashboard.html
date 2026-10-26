@@ -6,7 +6,7 @@
 <title>Products | SANDRAGON Admin</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
-<link rel="stylesheet" href="../css/style.css?v=20261026a">
+<link rel="stylesheet" href="../css/style.css?v=20261026b">
 <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
 </head>
 <body>
@@ -20,7 +20,6 @@
     <a href="banners.html"><i class="fas fa-images"></i> Banners</a>
     <a href="coupons.html"><i class="fas fa-tags"></i> Coupons</a>
     <a href="settings.html"><i class="fas fa-truck-fast"></i> Delivery</a>
-    <a href="points.html"><i class="fas fa-coins"></i> Points</a>
     <a href="../index.html" target="_blank"><i class="fas fa-store"></i> View Store</a>
     <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
   </aside>
@@ -30,6 +29,7 @@
       <h2>Products</h2>
       <div class="admin-actions">
         <button class="btn small outline" id="exportProductsBtn"><i class="fas fa-file-excel"></i> Export Excel</button>
+        <button class="btn small outline" id="exportCustomersBtn" title="Every customer with their points balance"><i class="fas fa-coins"></i> Customer Points</button>
         <button class="btn" id="addProductBtn"><i class="fas fa-plus"></i> Add Product</button>
       </div>
     </div>
@@ -116,11 +116,17 @@
         <input type="checkbox" id="fActive" style="width:auto" checked> Visible in store
       </label>
     </div>
-    <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="fPointsRedeemable" style="width:auto"> Points redeem applicable
-      </label>
-      <p class="stock-note" style="margin-top:4px">If checked, customers can pay for this product with their purchase points at checkout. If unchecked, the redeem option is not shown for this product.</p>
+    <div class="form-row points-row">
+      <div class="form-group">
+        <label for="fEarnPoints"><i class="fas fa-coins gold"></i> Earn points</label>
+        <input type="number" id="fEarnPoints" min="0" step="1" inputmode="numeric" placeholder="0">
+        <p class="stock-note" style="margin-top:4px">Points a customer earns for each one of this product they buy (e.g. 10 → buying 2 earns 20). Leave 0 for no points.</p>
+      </div>
+      <div class="form-group">
+        <label for="fRedeemPoints"><i class="fas fa-tag gold"></i> Redeem points</label>
+        <input type="number" id="fRedeemPoints" min="0" step="1" inputmode="numeric" placeholder="0">
+        <p class="stock-note" style="margin-top:4px">Most points a customer can use on each one of this product (1 point = ₹1, e.g. 5 → ₹5 off). Leave 0 to not allow points.</p>
+      </div>
     </div>
     <div class="form-group">
       <label style="display:flex;align-items:center;gap:8px">
@@ -164,8 +170,8 @@
   </div>
 </div>
 
-<script type="module" src="js/admin-products.js?v=20261026a"></script>
-<script type="module" src="js/admin-product-reviews.js?v=20261026a"></script>
+<script type="module" src="js/admin-products.js?v=20261026b"></script>
+<script type="module" src="js/admin-product-reviews.js?v=20261026b"></script>
 <script src="../js/premium.js?v=20261015" defer></script>
 </body>
 </html>

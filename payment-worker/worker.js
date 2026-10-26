@@ -27,7 +27,8 @@
 //   ALLOWED_ORIGINS      Text    optional, comma separated; defaults below
 //   FIREBASE_PROJECT_ID  Text    optional; defaults to sandragon-official
 //
-// The total calculation below mirrors computeTotals() in js/cart.js. If the
+// The total calculation below mirrors computeTotals() in js/cart.js
+// (points are set per product: earnPoints / redeemPoints, 1 point = ₹1). If the
 // pricing rules change there, change them here too.
 
 const DEFAULT_ORIGINS = [
@@ -40,7 +41,6 @@ const DEFAULT_ORIGINS = [
   'http://127.0.0.1:5500'
 ];
 const DEFAULT_SHIPPING = { freeThreshold: 499, flatCharge: 50 };
-const DEFAULT_POINTS = { enabled: false, spendAmount: 100, earnPoints: 10, pointValue: 1, maxRedeemPercent: 5 };
 const MAX_ITEMS = 50;
 
 class UserError extends Error {
@@ -80,28 +80,14 @@ async function getDocument(env, path) {
 
 // ---------- Pricing (mirror of js/cart.js computeTotals) ----------
 
-function normalizePoints(d) {
-  if (!d) return { ...DEFAULT_POINTS };
-  const pct = d.maxRedeemPercent;
-  return {
-    enabled: !!d.enabled,
-    spendAmount: Math.max(1, Number(d.spendAmount) || DEFAULT_POINTS.spendAmount),
-    earnPoints: Math.max(0, Number(d.earnPoints) || 0),
-    pointValue: Math.max(0, Number(d.pointValue) || 0),
-    maxRedeemPercent: pct === undefined || pct === null || pct === ''
-      ? DEFAULT_POINTS.maxRedeemPercent
-      : Math.min(100, Math.max(0, Number(pct) || 0))
-  };
-}
-
 function normalizeShipping(d) {
   if (!d) return { ...DEFAULT_SHIPPING };
   return { freeThreshold: Number(d.freeThreshold) || 0, flatCharge: Number(d.flatCharge) || 0 };
 }
 
-// lines: [{ price, qty, pointsRedeemable }]
+// lines: [{ price, qty, earnPoints, redeemPoints }]  (points are per item; 1 point = ₹1)
 // coupon: { type, value } | null
-function computeTotals({ lines, coupon, pointsCfg, balance, redeem, shippingCfg }) {
+function computeTotals({ lines, coupon, balance, redeem, shippingCfg }) {
   const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -109,22 +95,21 @@ function computeTotals({ lines, coupon, pointsCfg, balance, redeem, shippingCfg 
     discount = Math.min(Math.round(raw), subtotal);
   }
   const couponOn = !!coupon;
-  const eligible = lines.filter(l => l.pointsRedeemable).reduce((s, l) => s + l.price * l.qty, 0);
+  const redeemCap = lines.reduce((s, l) => s + l.redeemPoints * l.qty, 0);
   let redeemablePoints = 0;
-  if (!couponOn && pointsCfg.enabled && pointsCfg.pointValue && balance > 0) {
-    const capRupees = Math.max(0, Math.round(eligible * pointsCfg.maxRedeemPercent / 100));
-    const cap = Math.min(capRupees, Math.max(0, subtotal - discount));
-    redeemablePoints = Math.max(0, Math.min(balance, Math.floor(cap / pointsCfg.pointValue)));
+  if (!couponOn && balance > 0) {
+    const cap = Math.min(redeemCap, Math.max(0, subtotal - discount));
+    redeemablePoints = Math.max(0, Math.min(balance, cap));
   }
   const pointsUsed = redeem && !couponOn ? redeemablePoints : 0;
-  const pointsValue = Math.round(pointsUsed * (pointsCfg.pointValue || 0));
+  const pointsValue = pointsUsed;
   const shippingCharge = shippingCfg.freeThreshold > 0 && subtotal >= shippingCfg.freeThreshold ? 0 : shippingCfg.flatCharge;
   const total = Math.max(0, subtotal - discount - pointsValue + shippingCharge);
-  const pointsEarned = (couponOn || pointsUsed > 0 || !pointsCfg.enabled || !pointsCfg.earnPoints)
-    ? 0
-    : Math.floor(Math.max(0, subtotal) / pointsCfg.spendAmount) * pointsCfg.earnPoints;
+  const pointsEarned = (couponOn || pointsUsed > 0) ? 0 : lines.reduce((s, l) => s + l.earnPoints * l.qty, 0);
   return { subtotal, discount, pointsUsed, pointsValue, shippingCharge, total, pointsEarned };
 }
+
+const wholePts = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
 
 async function priceOrder(env, body) {
   const items = Array.isArray(body.items) ? body.items : [];
@@ -152,7 +137,7 @@ async function priceOrder(env, body) {
     if (p.stock !== undefined && p.stock !== null && Number(p.stock) < qtyById[id]) {
       throw new UserError(`Only ${Math.max(0, Number(p.stock))} of "${p.name || 'an item'}" left in stock.`, 'OUT_OF_STOCK');
     }
-    lines.push({ id, name: p.name || '', price, qty: qtyById[id], pointsRedeemable: !!p.pointsRedeemable, couponExcluded: !!p.couponExcluded });
+    lines.push({ id, name: p.name || '', price, qty: qtyById[id], earnPoints: wholePts(p.earnPoints), redeemPoints: wholePts(p.redeemPoints), couponExcluded: !!p.couponExcluded });
   }
 
   // Coupon: same checks as the cart page's "Apply".
@@ -170,23 +155,18 @@ async function priceOrder(env, body) {
     coupon = { code, type: c.type, value: Number(c.value) || 0 };
   }
 
-  const [pointsDoc, shippingDoc] = await Promise.all([
-    getDocument(env, 'settings/points'),
-    getDocument(env, 'settings/shipping')
-  ]);
-  const pointsCfg = normalizePoints(pointsDoc);
-  const shippingCfg = normalizeShipping(shippingDoc);
+  const shippingCfg = normalizeShipping(await getDocument(env, 'settings/shipping'));
 
   const phone = String(body.phone || '');
   if (!/^\d{10}$/.test(phone)) throw new UserError('Please enter a valid 10-digit phone number.');
   let balance = 0;
-  const redeem = !!body.redeemPoints && !coupon && pointsCfg.enabled;
+  const redeem = !!body.redeemPoints && !coupon;
   if (redeem) {
     const cust = await getDocument(env, `customers/${phone}`);
     balance = cust ? Math.max(0, Number(cust.pointsBalance) || 0) : 0;
   }
 
-  const totals = computeTotals({ lines, coupon, pointsCfg, balance, redeem, shippingCfg });
+  const totals = computeTotals({ lines, coupon, balance, redeem, shippingCfg });
   return { totals, lines, coupon, phone };
 }
 
