@@ -548,6 +548,7 @@ function openOrder(id) {
     <div class="stock-note"><strong>Customer:</strong> ${o.customer.name} · ${o.customer.phone} ${o.customer.email ? '· ' + o.customer.email : ''}</div>
     <div class="stock-note">${o.customer.address}, Pincode ${o.customer.pincode}</div>
     <div class="stock-note">Payment ID: ${o.paymentId}${o.paymentMode ? ' · ' + o.paymentMode : ''}</div>
+    ${o.gatewayOrderId && o.payment?.gateway === 'cashfree' ? `<div class="stock-note">Cashfree Order ID: <strong>${o.gatewayOrderId}</strong> <button type="button" class="btn small outline" style="padding:2px 10px;margin-left:6px" data-copy="${o.gatewayOrderId}"><i class="fas fa-copy"></i> Copy</button> <span style="opacity:.75">(search this in Cashfree to refund)</span></div>` : ''}
     <div id="paymentCheck" class="payment-check" hidden></div>
     ${o.status === 'cancel_requested' ? cancelRequestPanelHtml(o) : o.status === 'cancelled' ? cancelPanelHtml(o) : pointsStatusHtml(o)}
     ${returnsPanelHtml(o)}
@@ -663,6 +664,11 @@ document.getElementById('markConfirmedBtn').addEventListener('click', (e) => run
 
 // "Add Points" / "Settle Cancellation" live inside the order body, which is re-rendered each time.
 document.getElementById('modalOrderBody').addEventListener('click', async (e) => {
+  const copyBtn = e.target.closest('[data-copy]');
+  if (copyBtn) {
+    try { await navigator.clipboard.writeText(copyBtn.dataset.copy); copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied'; } catch (err) { /* clipboard blocked */ }
+    return;
+  }
   const btn = e.target.closest('#addMissingPointsBtn');
   if (btn) { runCredit(btn); return; }
   const decide = e.target.closest('[data-return-accept], [data-return-reject]');
