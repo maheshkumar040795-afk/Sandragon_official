@@ -1441,3 +1441,7 @@ tbody tr.row-selected{background:rgba(224,86,74,.08)}
 .seo-intro-points{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 26px;padding:0;margin:0;color:#444;font-size:.88rem}
 .seo-intro-points i{color:var(--gold);margin-right:6px}
 .seo-intro-points a{color:#8a6a10;text-decoration:underline}
+
+/* Admin product form: Earn points / Redeem points side by side */
+.points-row{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:600px){.points-row{grid-template-columns:1fr}}

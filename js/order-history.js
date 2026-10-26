@@ -388,8 +388,14 @@ function openReturnModal(id, o, idx, customer, onDone) {
 // The points an item earned: its share of the order's earned points.
 function itemEarnedShare(o, item) {
   const earned = o.points?.credited ? Number(o.points.earned) || 0 : 0;
+  if (!earned) return 0;
+  // Per-product points: this item's Earn points × quantity.
+  if (o.points?.rule?.perProduct) {
+    return Math.min(earned, Math.max(0, Math.floor(Number(item.earnPoints) || 0)) * (Number(item.qty) || 0));
+  }
+  // Older orders (points on the order total): this item's share by price.
   const subtotal = Number(o.subtotal) || (o.items || []).reduce((s, i) => s + i.price * i.qty, 0);
-  if (!earned || !subtotal) return 0;
+  if (!subtotal) return 0;
   return Math.floor(earned * (item.price * item.qty) / subtotal);
 }
 

@@ -4,24 +4,33 @@ import {
 } from "../../js/firebase-init.js";
 import { exportToExcel, fmtDate } from "./admin-export.js";
 import { business, paymentServerUrl } from "../../js/config.js";
-import { getPointsConfig, pointsForAmount, pointsToRupees } from "../../js/points-store.js";
+import { getPointsConfig, pointsToRupees, earnPointsOf } from "../../js/points-store.js";
 
 let pointsConfig = null;
-getPointsConfig().then(cfg => {
+// Earn points set on each product (Admin → Products), read from Firestore
+// so the points credited never depend on a number the shopper's browser sent.
+let productEarn = null;
+async function loadProductEarn() {
+  const snap = await getDocs(collection(db, 'products'));
+  const map = {};
+  snap.forEach(d => { map[d.id] = earnPointsOf(d.data()); });
+  productEarn = map;
+  return map;
+}
+Promise.all([getPointsConfig(), loadProductEarn().catch(err => { console.warn('Could not load product points', err); })]).then(([cfg]) => {
   pointsConfig = cfg;
   if (currentOrderId && modal.classList.contains('open')) openOrder(currentOrderId);
 });
 
-// Points this order earns, worked out here from the order's own amounts and
-// the CURRENT admin settings (never from a number the shopper's browser sent).
+// Points this order earns: each product's Earn points × quantity.
 function earnedPointsFor(o) {
   if (!pointsConfig?.enabled) return 0;
   // No new points on orders that used points or a coupon.
   if (earnBlockedReason(o)) return 0;
-  const coupon = Number(o.coupon?.discountAmount) || 0;
-  const redeemed = Number(o.points?.redeemValue) || 0;
-  const itemsPaid = (Number(o.subtotal) || 0) - coupon - redeemed;
-  return pointsForAmount(itemsPaid, pointsConfig);
+  return (o.items || []).reduce((sum, i) => {
+    const per = productEarn && i.productId in productEarn ? productEarn[i.productId] : earnPointsOf(i);
+    return sum + per * (Number(i.qty) || 0);
+  }, 0);
 }
 
 function earnBlockedReason(o) {
@@ -33,10 +42,9 @@ function earnBlockedReason(o) {
 function pointsLines(o) {
   const p = o.points;
   if (!p?.credited || !(p.earned > 0)) return '';
-  const value = pointsConfig?.pointValue ?? 1;
-  return `\n\n🪙 You earned *${p.earned} SANDRAGON points* on this order (worth ₹${pointsToRupees(p.earned, { pointValue: value }).toLocaleString('en-IN')}).` +
-    (typeof p.balanceAfter === 'number' ? `\nYour points balance: *${p.balanceAfter} points* = ₹${pointsToRupees(p.balanceAfter, { pointValue: value }).toLocaleString('en-IN')}.` : '') +
-    `\n1 point = ₹${value}. Use your points at checkout on your next order.`;
+  return `\n\n🪙 You earned *${p.earned} SANDRAGON points* on this order (worth ₹${pointsToRupees(p.earned).toLocaleString('en-IN')}).` +
+    (typeof p.balanceAfter === 'number' ? `\nYour points balance: *${p.balanceAfter} points* = ₹${pointsToRupees(p.balanceAfter).toLocaleString('en-IN')}.` : '') +
+    `\n1 point = ₹1. Use your points at checkout on your next order.`;
 }
 
 requireAdmin(() => loadOrders());
@@ -289,9 +297,6 @@ function creditedSoFar(o) {
 
 function pointsStatusHtml(o) {
   if (!pointsConfig) return '';
-  if (!pointsConfig.enabled) {
-    return `<div class="coupon-msg err mt-10" style="display:block"><i class="fas fa-triangle-exclamation"></i> The points programme is switched <strong>OFF</strong>, so confirming this order adds no points. Turn it on in <a href="points.html" style="text-decoration:underline">Admin → Points</a>, then come back and click <strong>Add Points</strong>.</div>`;
-  }
   const warn = o.points?.shortfall ? `<div class="coupon-msg err" style="display:block">Customer was ${o.points.shortfall} points short when this paid order was saved. Check before confirming.</div>` : '';
   const due = earnedPointsFor(o);
   const done = creditedSoFar(o);
@@ -301,7 +306,7 @@ function pointsStatusHtml(o) {
   }
   if (due === 0) {
     const why = earnBlockedReason(o);
-    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> This order earns no points${why ? ` because ${why}` : ''}.</div>`;
+    return `${warn}<div class="settings-preview mt-10"><i class="fas fa-coins gold"></i> This order earns no points${why ? ` because ${why}` : ' (its products have no Earn points set)'}.</div>`;
   }
   // Confirmed earlier without points (e.g. while the programme was off): offer to add them now.
   if (o.status !== 'placed') {
@@ -508,7 +513,8 @@ async function creditPoints(orderId) {
 async function runCredit(btn) {
   if (btn) btn.disabled = true;
   try {
-    pointsConfig = await getPointsConfig(); // always use the latest setting
+    pointsConfig = await getPointsConfig();
+    await loadProductEarn().catch(() => {}); // always use the latest product points
     await creditPoints(currentOrderId);
   } catch (err) {
     console.error(err);

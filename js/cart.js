@@ -6,7 +6,7 @@ import { toast } from "./toast.js";
 import { getShippingConfig, computeShippingCharge, DEFAULT_CONFIG } from "./shipping-store.js";
 import { cld, IMG_FALLBACK } from "./img.js";
 import { inr, mrpOf } from "./pricing.js";
-import { getPointsConfig, fetchPointsBalance, pointsForAmount, pointsToRupees, redeemCapRupees, DEFAULT_POINTS } from "./points-store.js";
+import { getPointsConfig, fetchPointsBalance, pointsToRupees, earnPointsOf, redeemPointsOf, earnForItems, redeemCapForItems, DEFAULT_POINTS } from "./points-store.js";
 
 // DEMO MODE: while the payment server address in config.js is still a
 // placeholder (or, for Razorpay, its Key ID is), checkout skips the real
@@ -99,7 +99,7 @@ function renderCart() {
       <div class="cart-line-price">
         <div class="gold" style="font-weight:700">₹${(item.price * item.qty).toLocaleString('en-IN')}</div>
         ${mrpOf(item) ? `<s class="mrp">₹${(mrpOf(item) * item.qty).toLocaleString('en-IN')}</s>` : ''}
-        ${item.pointsRedeemable && pointsConfig.enabled ? '<div class="points-tag"><i class="fas fa-coins"></i> Points OK</div>' : ''}
+        ${pointsTagHtml(item)}
         ${item.returnNotApplicable ? '<div class="no-return-tag"><i class="fas fa-ban"></i> Return not applicable for this product</div>' : ''}
       </div>
     </div>
@@ -151,18 +151,23 @@ function currentShippingCharge(subtotal) {
   return computeShippingCharge(subtotal, shippingConfig);
 }
 
-// Value of the products the admin marked "Points redeem applicable".
-function eligibleSubtotal() {
-  return getCart().filter(i => i.pointsRedeemable).reduce((s, i) => s + i.price * i.qty, 0);
+// Little "Earn 10 pts · Use up to 5 pts" line under each cart item.
+function pointsTagHtml(item) {
+  const earn = earnPointsOf(item) * item.qty;
+  const use = redeemPointsOf(item) * item.qty;
+  const parts = [];
+  if (earn) parts.push(`Earn ${earn} pts`);
+  if (use) parts.push(`Use up to ${use} pts`);
+  return parts.length ? `<div class="points-tag"><i class="fas fa-coins"></i> ${parts.join(' · ')}</div>` : '';
 }
 
 // How many points can go on this order: limited by the balance, by the
-// admin's max-redeem % of the eligible items' value (5% of ₹449 → ₹22),
-// and never more than what's left after the coupon.
+// points each product allows (Redeem points × quantity), and never more
+// than what's left after the coupon. 1 point = ₹1.
 function maxRedeemablePoints(subtotal, couponDiscount) {
-  if (!pointsConfig.enabled || !pointsConfig.pointValue || pointsBalance <= 0) return 0;
-  const cap = Math.min(redeemCapRupees(eligibleSubtotal(), pointsConfig), Math.max(0, subtotal - couponDiscount));
-  return Math.max(0, Math.min(pointsBalance, Math.floor(cap / pointsConfig.pointValue)));
+  if (pointsBalance <= 0) return 0;
+  const cap = Math.min(redeemCapForItems(getCart()), Math.max(0, subtotal - couponDiscount));
+  return Math.max(0, Math.min(pointsBalance, cap));
 }
 
 // Every money figure for the order, computed in one place so the summary,
@@ -177,21 +182,20 @@ function computeTotals() {
   const couponOn = !!appliedCoupon;
   const redeemablePoints = couponOn ? 0 : maxRedeemablePoints(subtotal, discount);
   const pointsUsed = redeemOn && !couponOn ? redeemablePoints : 0;
-  const pointsValue = pointsToRupees(pointsUsed, pointsConfig);
+  const pointsValue = pointsToRupees(pointsUsed);
   const shippingCharge = currentShippingCharge(subtotal);
   const total = Math.max(0, subtotal - discount - pointsValue + shippingCharge);
-  const pointsEarned = (couponOn || pointsUsed > 0) ? 0 : pointsForAmount(subtotal, pointsConfig);
+  const pointsEarned = (couponOn || pointsUsed > 0) ? 0 : earnForItems(cart);
   return { subtotal, mrpTotal, discount, redeemablePoints, pointsUsed, pointsValue, shippingCharge, total, pointsEarned, couponOn };
 }
 
 function renderPointsBox(t) {
   const box = document.getElementById('pointsBox');
   if (!box) return;
-  const hasEligible = getCart().some(i => i.pointsRedeemable);
-  // Hidden unless the programme is on, this shopper has points, and at
-  // least one product in the cart allows paying with points.
+  // Hidden unless this shopper has points and at least one product in the
+  // cart allows paying with points.
   const couldRedeem = maxRedeemablePoints(t.subtotal, 0);
-  if (!pointsConfig.enabled || !hasEligible || pointsBalance <= 0 || couldRedeem <= 0) {
+  if (pointsBalance <= 0 || couldRedeem <= 0) {
     box.hidden = true;
     if (redeemOn) redeemOn = false;
     return;
@@ -209,14 +213,14 @@ function renderPointsBox(t) {
     return;
   }
   box.classList.remove('is-blocked');
-  const worth = pointsToRupees(t.redeemablePoints, pointsConfig);
+  const worth = pointsToRupees(t.redeemablePoints);
   box.innerHTML = `
     <div class="points-box-text">
       <strong><i class="fas fa-coins"></i> Redeem your points here</strong>
-      <span>You have <b>${pointsBalance.toLocaleString('en-IN')} points</b> (${inr(pointsToRupees(pointsBalance, pointsConfig))}).
+      <span>You have <b>${pointsBalance.toLocaleString('en-IN')} points</b> (${inr(pointsToRupees(pointsBalance))}).
         ${redeemOn ? `Using <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points: <b>-${inr(worth)}</b>.`
-                   : `Use <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points to save <b>${inr(worth)}</b> on eligible items.`}
-        <small>${redeemOn ? 'No new points are earned on an order paid with points.' : `You can use points for up to ${pointsConfig.maxRedeemPercent}% of eligible items per order. Orders paid with points don't earn new points.`}</small></span>
+                   : `Use <b>${t.redeemablePoints.toLocaleString('en-IN')}</b> points to save <b>${inr(worth)}</b> on this order.`}
+        <small>${redeemOn ? 'No new points are earned on an order paid with points.' : 'Each product sets how many points can be used on it. Orders paid with points don\'t earn new points.'}</small></span>
     </div>
     <button type="button" class="btn small ${redeemOn ? 'outline' : ''}" id="redeemBtn">${redeemOn ? 'Remove' : 'Redeem'}</button>`;
   document.getElementById('redeemBtn').addEventListener('click', () => {
@@ -250,7 +254,7 @@ function updateSummary() {
   const earnNote = document.getElementById('earnNote');
   if (earnNote) {
     earnNote.style.display = t.pointsEarned > 0 ? 'block' : 'none';
-    earnNote.innerHTML = `<i class="fas fa-coins"></i> You'll earn <b>${t.pointsEarned} points</b> (worth ${inr(pointsToRupees(t.pointsEarned, pointsConfig))}) on this order, added once we confirm it.`;
+    earnNote.innerHTML = `<i class="fas fa-coins"></i> You'll earn <b>${t.pointsEarned} points</b> (worth ${inr(pointsToRupees(t.pointsEarned))}) on this order, added once we confirm it.`;
   }
   document.getElementById('subtotalVal').textContent = `₹${subtotal.toLocaleString('en-IN')}`;
   document.getElementById('totalVal').textContent = `₹${total.toLocaleString('en-IN')}`;
@@ -408,7 +412,7 @@ async function handlePayment() {
     redeemValue: t.pointsValue,
     earned: t.pointsEarned,
     credited: false,
-    rule: { spendAmount: pointsConfig.spendAmount, earnPoints: pointsConfig.earnPoints, pointValue: pointsConfig.pointValue }
+    rule: { perProduct: true, pointValue: 1 }
   } : null;
 
   // Keep the lightweight account record in sync with whatever they just
@@ -646,7 +650,9 @@ async function refreshCartFromStore() {
       ...item,
       price: price || item.price,
       mrp: mrpOf(p),
-      pointsRedeemable: !!p.pointsRedeemable,
+      pointsRedeemable: redeemPointsOf(p) > 0,
+      earnPoints: earnPointsOf(p),
+      redeemPoints: redeemPointsOf(p),
       couponExcluded: !!p.couponExcluded,
       returnNotApplicable: !!p.returnNotApplicable
     });

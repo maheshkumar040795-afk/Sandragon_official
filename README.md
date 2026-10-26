@@ -382,3 +382,22 @@ Admin → Orders → open an order shows "Paid ₹X by UPI, confirmed by Cashfre
    Cashfree dashboard (Transactions → Refund) to confirm everything end to end.
 
 Refunds for cancelled/returned orders are made from the Cashfree dashboard.
+
+---
+
+## Update — 26 Oct 2026: Points set per product
+
+- The common **Admin → Points** screen (spend ₹X → earn Y, point value, max redeem %) is removed.
+- Each product now has two fields in **Admin → Products → Add/Edit**:
+  - **Earn points** — points a customer earns for each one bought (10 → buying 2 earns 20).
+  - **Redeem points** — the most points a customer can use on each one (5 → up to ₹5 off each).
+  - 1 point = ₹1. Leave 0 for none. The products table shows "Earn 10 · Redeem 5".
+- Rules kept: a coupon can't be combined with points and earns none; an order paid partly with
+  points earns none; points are credited when the admin marks the order Confirmed; a returned item
+  takes back the points it earned.
+- Product page shows "Earn 10 points on each one you buy / Use up to 5 points on each one"; cart
+  shows the same per item.
+- **Customer Points** export (balances) moved to the Products page header.
+- Existing products start at 0 / 0 — set the numbers on each product.
+- **The payment server changed too:** paste the new `payment-worker/worker.js` into Cloudflare and
+  Deploy (otherwise checkout totals won't match and shoppers will see "total has been updated").
